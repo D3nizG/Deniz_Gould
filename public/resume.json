@@ -1,49 +1,107 @@
 {
-"name": "Deniz Gould",
-"title": "AI/ML-Focused Software Engineer",
-"location": "San Francisco, CA",
-"phone": "+1 (650) 315-3064",
-"email": "deniz.gould@live.com",
-"linkedin": "linkedin.com/in/deniz-gould",
-"website": "www.myWebsiteName.com",
-"objective": "AI/ML-focused software engineer with experience building intelligent web applications…",
-"education": [
-{
-"degree": "M.S. Computer Science, AI/ML Concentration",
-"school": "University of San Francisco",
-"year": "Expected 2026",
-"coursework": ["Bayesian & Deep Learning", "Network Programming", "Algorithms"]
-},
-{
-"degree": "B.S. Computer Science",
-"school": "University of the West Indies",
-"years": "2019-2022",
-"coursework": ["Artificial Intelligence", "Web Development 1 + 2", "Cognitive Psychology"]
-}
-],
-"skills": {
-"languages": ["Python", "Java", "JavaScript", "SQL"],
-"frameworks_tools": ["Django", "React.js", "LangChain", "OpenCV", "GitHub", "REST APIs"],
-"ml_tools": ["TensorFlow", "PyTorch"],
-"soft_skills": ["Clear communication", "Collaboration", "Leadership", "Adaptability", "Continuous learning", "Problem-solving"],
-"interests": ["Cognitive Psychology", "Intelligence", "Music", "Chess"],
-"languages_spoken": ["English", "Turkish", "Conversational French"]
-},
-"projects": [
-{
-"name": "AI-Powered Smart Calendar",
-"stack": ["Java", "LangChain4j", "OpenAI", "Google Calendar API"],
-"summary": "Natural-language scheduling assistant that optimizes event planning."
-},
-{
-"name": "Multiplayer Tic-Tac-Toe (Dynamic Piece Sizes)",
-"stack": ["Flask", "WebSockets", "Python"],
-"summary": "Real-time multiplayer game with strategic piece-size overlay mechanic."
-},
-{
-"name": "Multilingual Translator with AI-Powered Gesture & Speech",
-"stack": ["Java", "LangChain4j", "OpenCV", "LLMs"],
-"summary": "In-progress: gesture + speech translation system for inclusive communication."
-}
-]
+    "name": "Deniz Gould",
+    "title": "AI/ML-Focused Software Engineer",
+    "location": "San Francisco, CA",
+    "phone": "+1 (650) 315-3064",
+    "email": "deniz.gould@live.com",
+    "linkedin": "linkedin.com/in/deniz-gould",
+    "website": "www.myWebsiteName.com",
+    "objective": "AI/ML-focused software engineer with experience building intelligent web applications…",
+    "education": [
+        {
+            "degree": "M.S. Computer Science, AI/ML Concentration",
+            "school": "University of San Francisco",
+            "year": "Expected 2026",
+            "focus": "Artificial Intelligence, Machine Learning, Deep Learning",
+            "coursework": [
+                "Bayesian & Deep Learning",
+                "Network Programming",
+                "Algorithms"
+            ]
+        },
+        {
+            "degree": "B.S. Computer Science",
+            "school": "University of the West Indies",
+            "years": "2019-2022",
+            "focus": "Software Engineering, System Design, Web Development, Cognitive Psychology",
+            "coursework": [
+                "Artificial Intelligence",
+                "Operating Systems",
+                "Web Development 1 + 2",
+                "Cognitive Psychology",
+                "Database Management Systems",
+                "Software Engineering"
+            ]
+        }
+    ],
+    "skills": {
+        "languages": [
+            "Python",
+            "Java",
+            "JavaScript",
+            "SQL"
+        ],
+        "frameworks_tools": [
+            "Django",
+            "React.js",
+            "LangChain",
+            "OpenCV",
+            "GitHub",
+            "REST APIs"
+        ],
+        "ml_tools": [
+            "TensorFlow",
+            "PyTorch"
+        ],
+        "soft_skills": [
+            "Clear communication",
+            "Collaboration",
+            "Leadership",
+            "Adaptability",
+            "Continuous learning",
+            "Problem-solving"
+        ],
+        "interests": [
+            "Cognitive Psychology",
+            "Intelligence",
+            "Music",
+            "Chess"
+        ],
+        "languages_spoken": [
+            "English",
+            "Turkish",
+            "Conversational French"
+        ]
+    },
+    "projects": [
+        {
+            "name": "AI-Powered Smart Calendar",
+            "stack": [
+                "Java",
+                "LangChain4j",
+                "OpenAI",
+                "Google Calendar API"
+            ],
+            "summary": "Natural-language scheduling assistant that optimizes event planning."
+        },
+        {
+            "name": "Multiplayer Tic-Tac-Toe (Dynamic Piece Sizes)",
+            "stack": [
+                "Flask",
+                "WebSockets",
+                "Python"
+            ],
+            "summary": "Real-time multiplayer game with strategic piece-size overlay mechanic."
+        },
+        {
+            "name": "Multilingual Translator with AI-Powered Gesture & Speech",
+            "stack": [
+                "Java",
+                "LangChain4j",
+                "OpenCV",
+                "LLMs"
+            ],
+            "summary": "In-progress: gesture + speech translation system for inclusive communication."
+        }
+    ]
 }

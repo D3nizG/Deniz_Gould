@@ -9,16 +9,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        bg: '#0D1117',
-        fg: '#F0F6FC',
-        accent: {
-          primary: '#64FFDA',
-          secondary: '#FFB86B'
-        }
+        bg: 'rgb(var(--bg) / <alpha-value>)',
+        fg: 'rgb(var(--fg) / <alpha-value>)',
+        'accent-primary': 'rgb(var(--accent-primary) / <alpha-value>)',
+        'accent-secondary': 'rgb(var(--accent-secondary) / <alpha-value>)'
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui'],
-        mono: ['Fira Code', 'ui-monospace']
+        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui'],
+        mono: ['var(--font-mono)', 'ui-monospace']
       }
     }
   },

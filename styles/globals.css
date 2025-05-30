@@ -2,11 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* custom scroll-bar, selection, transition helpers */
-html {
-scroll-behavior: smooth;
+@layer base {
+  :root {
+    /* Light theme colors */
+    --bg: 249 250 251; /* gray-50 */
+    --fg: 17 24 39; /* gray-900 */
+    --accent-primary: 20 184 166; /* teal-500 */
+    --accent-secondary: 251 146 60; /* orange-400 */
+  }
+
+  .dark {
+    /* Dark theme colors (keeping original design) */
+    --bg: 13 17 23; /* #0D1117 */
+    --fg: 240 246 252; /* #F0F6FC */
+    --accent-primary: 100 255 218; /* #64FFDA */
+    --accent-secondary: 255 184 107; /* #FFB86B */
+  }
 }
+
+/* Custom scroll-bar, selection, transition helpers */
+html {
+  scroll-behavior: smooth;
+}
+
 ::selection {
-background: theme('colors.accent.primary');
-color: theme('colors.bg');
+  background: rgb(var(--accent-primary));
+  color: rgb(var(--bg));
+}
+
+/* Ensure smooth transitions for theme changes */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }

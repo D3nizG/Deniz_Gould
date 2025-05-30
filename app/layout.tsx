@@ -1,20 +1,27 @@
-/* app/layout.tsx */
+import type { Metadata } from 'next';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import '../styles/globals.css';
-import type { ReactNode } from 'react';
-import { Inter, Fira_Code } from 'next/font/google';
+import { ThemeInitializer } from '@/components/ThemeInitializer';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
-const fira  = Fira_Code({ subsets: ['latin'], variable: '--font-mono' });
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Deniz Gould - AI/ML Engineer',
-  description: 'Interactive portfolio',
+  description: 'Portfolio of Deniz Gould, AI/ML Engineer',
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en" className={`${inter.variable} ${fira.variable}`}>
-      <body className="bg-bg text-fg">{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans bg-bg text-fg`}>
+        <ThemeInitializer />
+        {children}
+      </body>
     </html>
   );
 }
