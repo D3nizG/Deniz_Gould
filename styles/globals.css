@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* custom scroll-bar, selection, transition helpers */
+html {
+scroll-behavior: smooth;
+}
+::selection {
+background: theme('colors.accent.primary');
+color: theme('colors.bg');
+}
