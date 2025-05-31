@@ -21,17 +21,17 @@ export default function HomePage() {
     },
     {
       icon: <Github size={24} />,
-      href: 'https://github.com/D3nizG',
+      href: data.github.startsWith('http') ? data.github : `https://${data.github}`,
       label: 'GitHub'
     },
     {
       icon: <Twitter size={24} />,
-      href: 'https://x.com/D3n1z_G',
+      href: data.X.startsWith('http') ? data.X : `https://${data.X}`,
       label: 'X'
     },
     {
       icon: <Instagram size={24} />,
-      href: 'https://www.instagram.com/d3n.z',
+      href: data.instagram.startsWith('http') ? data.instagram : `https://${data.instagram}`,
       label: 'Instagram'
     },
     {

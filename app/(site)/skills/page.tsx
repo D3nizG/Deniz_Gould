@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as d3 from 'd3';
 import data from '@/public/resume.json';
+import { fadeSlideUp } from '@/lib/motion.client';
 
 interface SkillCategory {
   name: string;
@@ -236,11 +237,9 @@ export default function SkillsPage() {
     // Container is 1040px wide with 40px padding (20px each side)
     const containerWidth = 1040;
     const padding = 20;
-    const usableWidth = containerWidth - (padding * 2);
     const containerCenterX = containerWidth / 2;
     
     let left: number;
-    let top: number;
     
     if (slice.side === 'right') {
       // Position cards on right side, keeping within bounds
@@ -254,19 +253,34 @@ export default function SkillsPage() {
       left = Math.max(left, padding);
     }
     
-    // Improved vertical positioning - distribute cards evenly within container bounds
-    const containerHeight = 500; // min-h-[500px]
-    const containerTop = 40; // account for padding
-    const containerBottom = containerHeight - 40; // account for padding
-    const usableHeight = containerBottom - containerTop;
+    // Fixed vertical positioning based on slice Y position
+    const containerHeight = 500;
+    const topPadding = 40;
+    const bottomPadding = 40;
+    const usableHeight = containerHeight - topPadding - bottomPadding;
     
-    // Center vertically around slice position but keep within bounds
-    top = slice.position.y - cardHeight / 2 - 35; // Move up 35px
+    // Determine which vertical "row" this slice should be in based on its Y position
+    const sliceY = slice.position.y;
+    const containerCenterY = containerHeight / 2;
     
-    // Ensure card stays within vertical bounds
-    const minTop = containerTop;
-    const maxTop = containerBottom - cardHeight;
-    top = Math.max(minTop, Math.min(top, maxTop));
+    let top: number;
+    
+    // Define 4 fixed vertical positions evenly distributed
+    const row1Y = topPadding; // Top row - keep as is
+    const row2Y = topPadding + (usableHeight - cardHeight) * 0.33; // Second row
+    const row3Y = topPadding + (usableHeight - cardHeight) * 0.66; // Third row  
+    const row4Y = topPadding + (usableHeight - cardHeight); // Bottom row - fits exactly
+    
+    // Assign row based on slice Y position relative to center
+    if (sliceY < containerCenterY - 60) {
+      top = row1Y; // Top area
+    } else if (sliceY < containerCenterY - 20) {
+      top = row2Y; // Upper middle
+    } else if (sliceY < containerCenterY + 20) {
+      top = row3Y; // Lower middle  
+    } else {
+      top = row4Y; // Bottom area
+    }
     
     return {
       left,
@@ -278,16 +292,21 @@ export default function SkillsPage() {
     <section className="max-w-5xl mx-auto px-4 py-12">
       <motion.h1 
         className="text-3xl font-bold mb-8 text-center"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+        variants={fadeSlideUp}
+        initial="hidden"
+        animate="visible"
       >
         Skills & Expertise
       </motion.h1>
       
-      <div 
+      <motion.div 
         ref={containerRef}
         className="relative flex justify-center items-center min-h-[500px] px-5 bg-accent-primary/5 border border-accent-primary/20 rounded-lg mx-auto"
         style={{ width: '1040px', overflow: 'visible' }}
+        variants={fadeSlideUp}
+        initial="hidden"
+        animate="visible"
+        transition={{ delay: 0.2 }}
       >
         <svg 
           ref={svgRef} 
@@ -361,19 +380,32 @@ export default function SkillsPage() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </motion.div>
       
       {/* Instructions */}
-      <div className="text-center mt-8 text-sm text-fg/60">
+      <motion.div 
+        className="text-center mt-8 text-sm text-fg/60"
+        variants={fadeSlideUp}
+        initial="hidden"
+        animate="visible"
+        transition={{ delay: 0.4 }}
+      >
         {isMobile ? (
           <p>Tap a section to view detailed skills</p>
         ) : (
           <p>Hover over sections to explore my skills in detail</p>
         )}
-      </div>
+      </motion.div>
       
       {/* Category Legend */}
-      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 mx-auto" style={{ width: '1040px' }}>
+      <motion.div 
+        className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 mx-auto" 
+        style={{ width: '1040px' }}
+        variants={fadeSlideUp}
+        initial="hidden"
+        animate="visible"
+        transition={{ delay: 0.6 }}
+      >
         {data.skills.categories.map((category) => {
           const themeColors = getThemeColors(category.color);
           return (
@@ -391,7 +423,7 @@ export default function SkillsPage() {
             </div>
           );
         })}
-      </div>
+      </motion.div>
     </section>
   );
 }

@@ -4,14 +4,28 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import data from '@/public/resume.json';
 import { playNote } from '@/lib/audio';
+import { fadeSlideUp } from '@/lib/motion.client';
 
 export default function ProjectsPage() {
   const [selected, setSelected] = useState<number | null>(null);
 
   return (
     <section className="max-w-5xl mx-auto px-4 py-12">
-      <h1 className="text-3xl font-bold mb-8 text-center">Projects</h1>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <motion.h1 
+        className="text-3xl font-bold mb-8 text-center"
+        variants={fadeSlideUp}
+        initial="hidden"
+        animate="visible"
+      >
+        Projects
+      </motion.h1>
+      <motion.div 
+        className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
+        variants={fadeSlideUp}
+        initial="hidden"
+        animate="visible"
+        transition={{ delay: 0.2 }}
+      >
         {data.projects.map((project, i) => (
           <motion.div
             key={project.name}
@@ -39,7 +53,7 @@ export default function ProjectsPage() {
             )}
           </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       <AnimatePresence>
         {selected !== null && (
