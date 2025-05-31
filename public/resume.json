@@ -298,7 +298,7 @@
             "summary": "Natural-language scheduling assistant that optimizes event planning end-to-end.",
             "metrics": [
                 "Processed 10 000+ scheduling requests with 94 % intent-recognition accuracy",
-                "Creates or updates events in <2 s, cutting manual setup time by 50 %",
+                "Creates or updates events in <2s,cutting manual setup time by 50 %",
                 "Serves 200+ active users with 99.5 % uptime"
             ],
             "longDescription": "Scheduling between multiple people and shifting priorities can be a major time sink. This Java-based microservice wraps OpenAI's LLMs via LangChain4j into a conversational API that interprets plain-English requests - e.g. “Find me a 30-minute slot tomorrow afternoon with Alice and Bob” - and handles availability checks, conflict resolution, and time-zone conversions in under two seconds. With seamless Google Calendar integration and a Spring Boot deployment, it cut manual scheduling overhead by 50% in beta tests while serving 200+ users at 99.5% uptime."

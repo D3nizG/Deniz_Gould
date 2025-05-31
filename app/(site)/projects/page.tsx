@@ -16,7 +16,7 @@ export default function ProjectsPage() {
           <motion.div
             key={project.name}
             whileHover={{ y: -4 }}
-            className="bg-white/5 p-6 rounded-xl cursor-pointer"
+            className="bg-accent-primary/5 border border-accent-primary/20 p-6 rounded-lg cursor-pointer transition-all hover:bg-accent-primary/10"
             onClick={() => {
               playNote();
               setSelected(i);
@@ -55,7 +55,7 @@ export default function ProjectsPage() {
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-bg rounded-2xl p-8 max-w-lg w-full"
+              className="bg-bg rounded-2xl p-8 max-w-lg w-full mx-4"
             >
               <h2 className="text-2xl font-bold mb-4">
                 {data.projects[selected].name}

@@ -37,6 +37,41 @@ export default function SkillsPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Get theme-appropriate colors
+  const getThemeColors = (originalColor: string) => {
+    // Use CSS custom properties for automatic theme adaptation
+    if (originalColor === '#FFB86B') {
+      return {
+        legendText: 'rgb(var(--accent-secondary))',
+        cardTitle: 'rgb(var(--accent-secondary))',
+      };
+    } else {
+      return {
+        legendText: 'rgb(var(--accent-primary))',
+        cardTitle: 'rgb(var(--accent-primary))',
+      };
+    }
+  };
+
+  // Get card background with education page styling
+  const getCardBackground = (category: SkillCategory) => {
+    // Use the same styling as education page cards
+    if (category.color === '#FFB86B') {
+      return 'bg-accent-secondary/5 border border-accent-secondary/20';
+    } else {
+      return 'bg-accent-primary/5 border border-accent-primary/20';
+    }
+  };
+
+  // Get legend card background with education page styling
+  const getLegendBackground = (category: SkillCategory) => {
+    if (category.color === '#FFB86B') {
+      return 'bg-accent-secondary/5 hover:bg-accent-secondary/10 border border-accent-secondary/20';
+    } else {
+      return 'bg-accent-primary/5 hover:bg-accent-primary/10 border border-accent-primary/20';
+    }
+  };
+
   useEffect(() => {
     if (!svgRef.current || !containerRef.current) return;
 
@@ -189,43 +224,58 @@ export default function SkillsPage() {
 
   const activeSlice = isMobile ? selectedSlice : hoveredSlice;
 
-  // Calculate card position based on side with bounds checking
+  // Calculate card position based on side with proper bounds checking
   const getCardStyle = (slice: HoveredSlice) => {
     const cardWidth = 280;
     const cardHeight = 200;
     
-    // Get container center for more reliable positioning
+    // Get container dimensions
     const containerRect = containerRef.current?.getBoundingClientRect();
-    if (!containerRect) return { left: 0, top: 0, borderColor: slice.category.color };
+    if (!containerRect) return { left: 0, top: 0 };
     
-    const containerCenterX = containerRect.width / 2;
+    // Container is 1040px wide with 40px padding (20px each side)
+    const containerWidth = 1040;
+    const padding = 20;
+    const usableWidth = containerWidth - (padding * 2);
+    const containerCenterX = containerWidth / 2;
     
     let left: number;
     let top: number;
     
     if (slice.side === 'right') {
-      // Position to the right, but relative to container center
-      left = containerCenterX + 120; // Fixed distance from center
+      // Position cards on right side, keeping within bounds
+      left = containerCenterX + 180;
+      // Ensure card doesn't exceed right boundary
+      left = Math.min(left, containerWidth - cardWidth - padding);
     } else {
-      // Position to the left, but relative to container center  
-      left = containerCenterX - cardWidth - 120; // Fixed distance from center
+      // Position cards on left side, keeping within bounds  
+      left = containerCenterX - cardWidth - 180;
+      // Ensure card doesn't exceed left boundary
+      left = Math.max(left, padding);
     }
     
-    // Center vertically around the slice position
-    top = slice.position.y - cardHeight / 2;
+    // Improved vertical positioning - distribute cards evenly within container bounds
+    const containerHeight = 500; // min-h-[500px]
+    const containerTop = 40; // account for padding
+    const containerBottom = containerHeight - 40; // account for padding
+    const usableHeight = containerBottom - containerTop;
     
-    // Ensure cards stay within reasonable bounds
-    top = Math.max(50, Math.min(top, 350));
+    // Center vertically around slice position but keep within bounds
+    top = slice.position.y - cardHeight / 2 - 35; // Move up 35px
+    
+    // Ensure card stays within vertical bounds
+    const minTop = containerTop;
+    const maxTop = containerBottom - cardHeight;
+    top = Math.max(minTop, Math.min(top, maxTop));
     
     return {
       left,
       top,
-      borderColor: slice.category.color,
     };
   };
 
   return (
-    <section className="max-w-4xl mx-auto px-4 py-12">
+    <section className="max-w-5xl mx-auto px-4 py-12">
       <motion.h1 
         className="text-3xl font-bold mb-8 text-center"
         initial={{ opacity: 0, y: 20 }}
@@ -236,8 +286,8 @@ export default function SkillsPage() {
       
       <div 
         ref={containerRef}
-        className="relative flex justify-center items-center min-h-[500px] px-8"
-        style={{ minWidth: '800px', overflow: 'visible' }}
+        className="relative flex justify-center items-center min-h-[500px] px-5 bg-accent-primary/5 border border-accent-primary/20 rounded-lg mx-auto"
+        style={{ width: '1040px', overflow: 'visible' }}
       >
         <svg 
           ref={svgRef} 
@@ -254,7 +304,7 @@ export default function SkillsPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.8, y: 8 }}
               transition={{ duration: 0.2 }}
-              className="absolute z-20 bg-bg border border-accent-primary/30 rounded-lg shadow-xl pointer-events-none"
+              className={`absolute z-20 rounded-lg shadow-xl pointer-events-none ${getCardBackground(activeSlice.category)}`}
               style={{
                 ...getCardStyle(activeSlice),
                 width: '280px',
@@ -267,7 +317,7 @@ export default function SkillsPage() {
                 <span className="text-xl">{activeSlice.category.icon}</span>
                 <h3 
                   className="font-semibold text-lg"
-                  style={{ color: activeSlice.category.color }}
+                  style={{ color: getThemeColors(activeSlice.category.color).cardTitle }}
                 >
                   {activeSlice.category.name}
                 </h3>
@@ -287,13 +337,13 @@ export default function SkillsPage() {
                     </div>
                     
                     {/* Skill Level Bar */}
-                    <div className="w-full bg-white/10 rounded-full h-2">
+                    <div className="w-full bg-accent-primary/10 rounded-full h-2">
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${(skill.level / 5) * 100}%` }}
                         transition={{ delay: index * 0.1, duration: 0.3 }}
                         className="h-full rounded-full"
-                        style={{ backgroundColor: activeSlice.category.color }}
+                        style={{ backgroundColor: getThemeColors(activeSlice.category.color).cardTitle }}
                       />
                     </div>
                   </div>
@@ -323,21 +373,24 @@ export default function SkillsPage() {
       </div>
       
       {/* Category Legend */}
-      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
-        {data.skills.categories.map((category) => (
-          <div 
-            key={category.name}
-            className="flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-          >
-            <span className="text-lg">{category.icon}</span>
-            <span 
-              className="text-sm font-medium"
-              style={{ color: category.color }}
+      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 mx-auto" style={{ width: '1040px' }}>
+        {data.skills.categories.map((category) => {
+          const themeColors = getThemeColors(category.color);
+          return (
+            <div 
+              key={category.name}
+              className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${getLegendBackground(category)}`}
             >
-              {category.name}
-            </span>
-          </div>
-        ))}
+              <span className="text-lg">{category.icon}</span>
+              <span 
+                className="text-sm font-medium"
+                style={{ color: themeColors.legendText }}
+              >
+                {category.name}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
