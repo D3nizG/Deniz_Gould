@@ -269,7 +269,8 @@ export default function SkillsPage() {
     const row1Y = topPadding; // Top row - keep as is
     const row2Y = topPadding + (usableHeight - cardHeight) * 0.33; // Second row
     const row3Y = topPadding + (usableHeight - cardHeight) * 0.66; // Third row  
-    const row4Y = topPadding + (usableHeight - cardHeight); // Bottom row - fits exactly
+    // const row4Y = topPadding + (usableHeight - cardHeight); // Bottom row - fits exactly
+    const row4Y = row3Y
     
     // Assign row based on slice Y position relative to center
     if (sliceY < containerCenterY - 60) {
@@ -289,7 +290,7 @@ export default function SkillsPage() {
   };
 
   return (
-    <section className="max-w-5xl mx-auto px-4 py-12">
+    <section className="max-w-5xl mx-auto px-4 pt-12 pb-6">
       <motion.h1 
         className="text-3xl font-bold mb-8 text-center"
         variants={fadeSlideUp}
@@ -384,7 +385,7 @@ export default function SkillsPage() {
       
       {/* Instructions */}
       <motion.div 
-        className="text-center mt-8 text-sm text-fg/60"
+        className="text-center mt-6 text-sm text-fg/60"
         variants={fadeSlideUp}
         initial="hidden"
         animate="visible"
@@ -399,7 +400,7 @@ export default function SkillsPage() {
       
       {/* Category Legend */}
       <motion.div 
-        className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 mx-auto" 
+        className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 mx-auto" 
         style={{ width: '1040px' }}
         variants={fadeSlideUp}
         initial="hidden"

@@ -42,10 +42,10 @@ export default function HomePage() {
   ];
 
   return (
-    <section className="flex flex-col items-center justify-center gap-8 text-center min-h-[calc(100vh-4rem)]">
+    <section className="flex flex-col items-center justify-center gap-4 text-center min-h-[calc(100vh-10rem)]">
       {/* Header Content - Moved up more with reduced top padding */}
       <motion.div
-        className="flex flex-col items-center gap-4 -mt-16"
+        className="flex flex-col items-center gap-3 -mt-8"
         variants={fadeSlideUp}
         initial="hidden"
         animate="visible"
@@ -99,7 +99,7 @@ export default function HomePage() {
 
       {/* Game Section */}
       <motion.div
-        className="flex flex-col items-center gap-4"
+        className="flex flex-col items-center gap-2"
         variants={fadeSlideUp}
         initial="hidden"
         animate="visible"
