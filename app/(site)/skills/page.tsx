@@ -1,43 +1,344 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import * as d3 from 'd3';
 import data from '@/public/resume.json';
 
+interface SkillCategory {
+  name: string;
+  icon: string;
+  color: string;
+  items: Array<{
+    name: string;
+    level: number;
+    years: string;
+  }>;
+}
+
+interface HoveredSlice {
+  category: SkillCategory;
+  position: { x: number; y: number };
+  side: 'left' | 'right';
+}
+
 export default function SkillsPage() {
-const svgRef = useRef<SVGSVGElement | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [hoveredSlice, setHoveredSlice] = useState<HoveredSlice | null>(null);
+  const [selectedSlice, setSelectedSlice] = useState<HoveredSlice | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
-useEffect(() => {
-if (!svgRef.current) return;
-const svg = d3.select(svgRef.current);
-const width = 320;
-const radius = width / 2;
-const skills = data.skills.languages.concat(data.skills.frameworks_tools);
-const pie = d3.pie<string>().value(() => 1)(skills);
-const arc = d3.arc<d3.PieArcDatum<string>>().innerRadius(radius * 0.6).outerRadius(radius);
+  // Check if mobile on mount
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
-svg.attr('viewBox', `0 0 ${width} ${width}`);
+  useEffect(() => {
+    if (!svgRef.current || !containerRef.current) return;
 
-const g = svg
-  .append('g')
-  .attr('transform', `translate(${radius},${radius})`)
-  .selectAll('path')
-  .data(pie)
-  .enter()
-  .append('path')
-  .attr('d', arc as any)
-  .attr('fill', (_, i) => (i % 2 ? '#64FFDA' : '#FFB86B'))
-  .attr('opacity', 0.8);
-return () => {
-  g.remove();
-};
+    const svg = d3.select(svgRef.current);
+    const container = containerRef.current;
+    const containerRect = container.getBoundingClientRect();
+    
+    // Clear previous content
+    svg.selectAll('*').remove();
+    
+    const width = Math.min(containerRect.width, 400);
+    const height = width;
+    const radius = width / 2 - 40;
+    const innerRadius = radius * 0.5;
+    
+    const skillCategories: SkillCategory[] = data.skills.categories;
+    
+    // Create pie layout
+    const pie = d3.pie<SkillCategory>()
+      .value(() => 1) // Equal slices
+      .sort(null);
+    
+    const arc = d3.arc<d3.PieArcDatum<SkillCategory>>()
+      .innerRadius(innerRadius)
+      .outerRadius(radius);
+    
+    const hoverArc = d3.arc<d3.PieArcDatum<SkillCategory>>()
+      .innerRadius(innerRadius)
+      .outerRadius(radius + 8);
 
-}, []);
+    // Set up SVG
+    svg
+      .attr('width', width)
+      .attr('height', height)
+      .attr('viewBox', `0 0 ${width} ${height}`);
 
-return (
-<section className="flex flex-col items-center py-16 gap-6">
-<h1 className="text-3xl font-bold">Skills</h1>
-<svg ref={svgRef} width={320} height={320} className="max-w-full" aria-label="Skill distribution chart" />
-</section>
-);
+    const g = svg
+      .append('g')
+      .attr('transform', `translate(${width / 2}, ${height / 2})`);
+
+    // Create slices
+    const slices = g
+      .selectAll('.slice')
+      .data(pie(skillCategories))
+      .enter()
+      .append('g')
+      .attr('class', 'slice')
+      .style('cursor', 'pointer');
+
+    // Add slice paths
+    slices
+      .append('path')
+      .attr('d', arc as any)
+      .style('fill', (d) => d.data.color)
+      .style('opacity', 0.8)
+      .style('stroke', '#fff')
+      .style('stroke-width', 2)
+      .style('transition', 'all 0.3s ease')
+      .on('mouseenter', function (event, d) {
+        if (isMobile) return;
+        
+        // Grow slice on hover
+        d3.select(this)
+          .transition()
+          .duration(200)
+          .attr('d', hoverArc as any)
+          .style('opacity', 1);
+        
+        // Calculate position for card
+        const centroid = arc.centroid(d);
+        const [x, y] = centroid;
+        
+        // Determine which side of the circle we're on - simple x-coordinate check
+        const side = x >= 0 ? 'right' : 'left';
+        
+        setHoveredSlice({
+          category: d.data,
+          position: { 
+            x: x + width / 2, 
+            y: y + height / 2 
+          },
+          side
+        });
+      })
+      .on('mouseleave', function (event, d) {
+        if (isMobile) return;
+        
+        // Shrink slice back
+        d3.select(this)
+          .transition()
+          .duration(200)
+          .attr('d', arc as any)
+          .style('opacity', 0.8);
+        
+        setHoveredSlice(null);
+      })
+      .on('click', function (event, d) {
+        if (!isMobile) return;
+        
+        // For mobile, toggle selection
+        const centroid = arc.centroid(d);
+        const [x, y] = centroid;
+        const side = x >= 0 ? 'right' : 'left';
+        
+        const newSelection = {
+          category: d.data,
+          position: { 
+            x: x + width / 2, 
+            y: y + height / 2 
+          },
+          side
+        };
+        
+        setSelectedSlice(
+          selectedSlice?.category.name === d.data.name 
+            ? null 
+            : newSelection
+        );
+      });
+
+    // Add category labels
+    slices
+      .append('text')
+      .attr('transform', (d) => `translate(${arc.centroid(d)})`)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'middle')
+      .style('fill', '#fff')
+      .style('font-size', '24px')
+      .style('pointer-events', 'none')
+      .text((d) => d.data.icon);
+
+    // Cleanup function
+    return () => {
+      svg.selectAll('*').remove();
+    };
+  }, [isMobile, selectedSlice]);
+
+  // Close cards when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setSelectedSlice(null);
+        setHoveredSlice(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const activeSlice = isMobile ? selectedSlice : hoveredSlice;
+
+  // Calculate card position based on side with bounds checking
+  const getCardStyle = (slice: HoveredSlice) => {
+    const cardWidth = 280;
+    const cardHeight = 200;
+    
+    // Get container center for more reliable positioning
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (!containerRect) return { left: 0, top: 0, borderColor: slice.category.color };
+    
+    const containerCenterX = containerRect.width / 2;
+    
+    let left: number;
+    let top: number;
+    
+    if (slice.side === 'right') {
+      // Position to the right, but relative to container center
+      left = containerCenterX + 120; // Fixed distance from center
+    } else {
+      // Position to the left, but relative to container center  
+      left = containerCenterX - cardWidth - 120; // Fixed distance from center
+    }
+    
+    // Center vertically around the slice position
+    top = slice.position.y - cardHeight / 2;
+    
+    // Ensure cards stay within reasonable bounds
+    top = Math.max(50, Math.min(top, 350));
+    
+    return {
+      left,
+      top,
+      borderColor: slice.category.color,
+    };
+  };
+
+  return (
+    <section className="max-w-4xl mx-auto px-4 py-12">
+      <motion.h1 
+        className="text-3xl font-bold mb-8 text-center"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        Skills & Expertise
+      </motion.h1>
+      
+      <div 
+        ref={containerRef}
+        className="relative flex justify-center items-center min-h-[500px] px-8"
+        style={{ minWidth: '800px', overflow: 'visible' }}
+      >
+        <svg 
+          ref={svgRef} 
+          className="max-w-full"
+          aria-label="Skills distribution chart"
+          role="img"
+        />
+        
+        {/* Skill Detail Cards */}
+        <AnimatePresence>
+          {activeSlice && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 8 }}
+              transition={{ duration: 0.2 }}
+              className="absolute z-20 bg-bg border border-accent-primary/30 rounded-lg shadow-xl pointer-events-none"
+              style={{
+                ...getCardStyle(activeSlice),
+                width: '280px',
+                minHeight: '200px',
+                padding: '20px',
+              }}
+            >
+              {/* Card Header */}
+              <div className="flex items-center gap-3 mb-4 pb-3 border-b border-accent-primary/20">
+                <span className="text-xl">{activeSlice.category.icon}</span>
+                <h3 
+                  className="font-semibold text-lg"
+                  style={{ color: activeSlice.category.color }}
+                >
+                  {activeSlice.category.name}
+                </h3>
+              </div>
+              
+              {/* Skills List */}
+              <div className="space-y-4">
+                {activeSlice.category.items.map((skill, index) => (
+                  <div key={skill.name} className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-fg">
+                        {skill.name}
+                      </span>
+                      <span className="text-xs text-accent-secondary font-mono px-2 py-1 bg-accent-secondary/10 rounded">
+                        {skill.years}
+                      </span>
+                    </div>
+                    
+                    {/* Skill Level Bar */}
+                    <div className="w-full bg-white/10 rounded-full h-2">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(skill.level / 5) * 100}%` }}
+                        transition={{ delay: index * 0.1, duration: 0.3 }}
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: activeSlice.category.color }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {isMobile && (
+                <button
+                  onClick={() => setSelectedSlice(null)}
+                  className="mt-4 pt-3 border-t border-accent-primary/20 text-xs text-accent-secondary hover:text-accent-primary transition-colors w-full text-center pointer-events-auto"
+                >
+                  Tap to close
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+      
+      {/* Instructions */}
+      <div className="text-center mt-8 text-sm text-fg/60">
+        {isMobile ? (
+          <p>Tap a section to view detailed skills</p>
+        ) : (
+          <p>Hover over sections to explore my skills in detail</p>
+        )}
+      </div>
+      
+      {/* Category Legend */}
+      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+        {data.skills.categories.map((category) => (
+          <div 
+            key={category.name}
+            className="flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+          >
+            <span className="text-lg">{category.icon}</span>
+            <span 
+              className="text-sm font-medium"
+              style={{ color: category.color }}
+            >
+              {category.name}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }

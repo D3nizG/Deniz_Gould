@@ -71,6 +71,219 @@
             "English",
             "Turkish",
             "Conversational French"
+        ],
+        "categories": [
+            {
+                "name": "Frameworks & Libraries",
+                "icon": "🔧",
+                "color": "#FFB86B",
+                "items": [
+                    {
+                        "name": "React.js",
+                        "level": 4,
+                        "years": "5+ yrs"
+                    },
+                    {
+                        "name": "Django",
+                        "level": 3.5,
+                        "years": "3+ yrs"
+                    },
+                    {
+                        "name": "Flask",
+                        "level": 3,
+                        "years": "5+ yr"
+                    },
+                    {
+                        "name": "LangChain",
+                        "level": 4.5,
+                        "years": "1+ yr"
+                    }
+                ]
+            },
+            {
+                "name": "AI/ML",
+                "icon": "🤖",
+                "color": "#64FFDA",
+                "items": [
+                    {
+                        "name": "TensorFlow",
+                        "level": 4,
+                        "years": "1+ yr"
+                    },
+                    {
+                        "name": "PyTorch",
+                        "level": 4,
+                        "years": "1+ yr"
+                    },
+                    {
+                        "name": "OpenCV",
+                        "level": 3,
+                        "years": "1+ yr"
+                    },
+                    {
+                        "name": "Model Training",
+                        "level": 4,
+                        "years": "1+ yr"
+                    }
+                ]
+            },
+            {
+                "name": "Web Development",
+                "icon": "🌐",
+                "color": "#FFB86B",
+                "items": [
+                    {
+                        "name": "REST APIs",
+                        "level": 4,
+                        "years": "5+ yrs"
+                    },
+                    {
+                        "name": "WebSockets",
+                        "level": 3,
+                        "years": "1+ yr"
+                    },
+                    {
+                        "name": "HTML/CSS",
+                        "level": 4,
+                        "years": "6+ yrs"
+                    },
+                    {
+                        "name": "Responsive Design",
+                        "level": 4,
+                        "years": "5+ yrs"
+                    }
+                ]
+            },
+            {
+                "name": "Tools & DevOps",
+                "icon": "⚙️",
+                "color": "#64FFDA",
+                "items": [
+                    {
+                        "name": "Git/GitHub",
+                        "level": 4,
+                        "years": "6+ yrs"
+                    },
+                    {
+                        "name": "Docker",
+                        "level": 2,
+                        "years": "1+ yr"
+                    },
+                    {
+                        "name": "CI/CD",
+                        "level": 1.5,
+                        "years": "Learning"
+                    },
+                    {
+                        "name": "Testing",
+                        "level": 3,
+                        "years": "2+ yr"
+                    }
+                ]
+            },
+            {
+                "name": "Soft Skills",
+                "icon": "🤝",
+                "color": "#FFB86B",
+                "items": [
+                    {
+                        "name": "Clear Communication",
+                        "level": 5,
+                        "years": "Well Spoken"
+                    },
+                    {
+                        "name": "Collaboration",
+                        "level": 5,
+                        "years": "Team Player"
+                    },
+                    {
+                        "name": "Leadership",
+                        "level": 4,
+                        "years": "Rallying"
+                    },
+                    {
+                        "name": "Problem-solving",
+                        "level": 5,
+                        "years": "Sharp"
+                    }
+                ]
+            },
+            {
+                "name": "Languages",
+                "icon": "🗣️",
+                "color": "#64FFDA",
+                "items": [
+                    {
+                        "name": "English",
+                        "level": 5,
+                        "years": "Native"
+                    },
+                    {
+                        "name": "Turkish",
+                        "level": 5,
+                        "years": "Native"
+                    },
+                    {
+                        "name": "French",
+                        "level": 2,
+                        "years": "Conversational"
+                    }
+                ]
+            },
+            {
+                "name": "Databases",
+                "icon": "🗄️",
+                "color": "#FFB86B",
+                "items": [
+                    {
+                        "name": "SQL",
+                        "level": 4,
+                        "years": "5+ yrs"
+                    },
+                    {
+                        "name": "Database Design",
+                        "level": 3,
+                        "years": "4+ yr"
+                    },
+                    {
+                        "name": "Query Optimization",
+                        "level": 3,
+                        "years": "3+ yr"
+                    },
+                    {
+                        "name": "Data Modeling",
+                        "level": 3,
+                        "years": "3+ yr"
+                    }
+                ]
+            },
+            {
+                "name": "Programming Languages",
+                "icon": "💻",
+                "color": "#64FFDA",
+                "items": [
+                    {
+                        "name": "Python",
+                        "level": 5,
+                        "years": "6+ yrs"
+                    },
+                    {
+                        "name": "Java",
+                        "level": 4,
+                        "years": "6+ yrs"
+                    },
+                    {
+                        "name": "JavaScript",
+                        "level": 3.5,
+                        "years": "5+ yrs"
+                    },
+                    {
+                        "name": "SQL",
+                        "level": 3,
+                        "years": "5+ yr"
+                    }
+                ]
+            }
         ]
     },
     "projects": [
