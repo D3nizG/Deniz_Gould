@@ -1,12 +1,12 @@
 'use client';
 
-import { Sun, Moon } from 'lucide-react';
-import { useUIStore } from '@/lib/store';
+import { Volume2, VolumeX } from 'lucide-react';
+import { useUIStore } from '../lib/store';
 import { useEffect, useState } from 'react';
-import { playNote } from '@/lib/audio';
+import { playNote } from '../lib/audio';
 
-export default function ThemeToggle() {
-  const { theme, toggleTheme } = useUIStore();
+export default function SoundToggle() {
+  const { muted, toggleMute } = useUIStore();
   const [mounted, setMounted] = useState(false);
 
   // Only render after hydration to avoid SSR mismatch
@@ -14,13 +14,19 @@ export default function ThemeToggle() {
     setMounted(true);
   }, []);
 
+  const handleHover = () => {
+    // Only play sound when unmuted (sound is on)
+    if (!muted) {
+      playNote();
+    }
+  };
+
   // Show a placeholder during SSR/hydration
   if (!mounted) {
     return (
       <button 
-        aria-label="Toggle theme" 
+        aria-label="Toggle sound" 
         className="p-2 rounded-full hover:bg-accent-primary/20 transition opacity-50"
-        onMouseEnter={playNote}
       >
         <div className="w-[18px] h-[18px]" /> {/* Placeholder to maintain layout */}
       </button>
@@ -29,12 +35,12 @@ export default function ThemeToggle() {
 
   return (
     <button 
-      aria-label="Toggle theme" 
+      aria-label="Toggle sound" 
       className="p-2 rounded-full hover:bg-accent-primary/20 transition" 
-      onClick={toggleTheme}
-      onMouseEnter={playNote}
+      onClick={toggleMute}
+      onMouseEnter={handleHover}
     >
-      {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+      {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
     </button>
   );
 }
