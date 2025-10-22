@@ -1,0 +1,14 @@
+{
+  "sourceFile": "best_model.zip",
+  "modelType": "qrdqn",
+  "steps": null,
+  "updatedAt": "2025-10-21T09:28:11.148649Z",
+  "sha256": "e87ec753813cca7f376668c14ec55930b11cf4dced42925a61c5c4477539e73b",
+  "n_actions": 9,
+  "input": {
+    "stack": 4,
+    "h": 84,
+    "w": 84
+  },
+  "fileSize": 10434076
+}
