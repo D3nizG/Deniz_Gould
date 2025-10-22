@@ -2,16 +2,16 @@
 
 import { motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
 import { fadeSlideUp } from '../../lib/motion.client';
 import data from '../../public/resume.json';
 import { Linkedin, Github, Twitter, Instagram, Mail, Play, Bot, User } from 'lucide-react';
 import { useState } from 'react';
 
-const Game = dynamic(() => import('../../components/Game/MsPacMan'), { ssr: false, loading: () => null });
+const MsPacmanCanvas = dynamic(() => import('../../src/components/MsPacmanCanvas'), { ssr: false, loading: () => null });
 
 export default function HomePage() {
   const [isAIMode, setIsAIMode] = useState(true);
+  const [gameKey, setGameKey] = useState(0);
 
   const socialLinks = [
     {
@@ -113,11 +113,7 @@ export default function HomePage() {
           animate="visible"
           transition={{ delay: 0.6 }}
         >
-          <Game />
-          <div className="absolute inset-0 pointer-events-none animate-pulse opacity-10">
-            {/* subtle background particles placeholder */}
-            <Image src="/images/particles.svg" alt="" fill />
-          </div>
+          <MsPacmanCanvas key={gameKey} mode={isAIMode ? 'ai' : 'manual'} />
         </motion.div>
 
         {/* Game Controls */}
@@ -128,16 +124,13 @@ export default function HomePage() {
           animate="visible"
           transition={{ delay: 0.7 }}
         >
-          {/* Play Button */}
+          {/* Reset / Play Button */}
           <button
             className="flex items-center gap-2 px-6 py-3 bg-accent-primary/20 hover:bg-accent-primary/30 border border-accent-primary/30 rounded-lg transition-all duration-300 hover:scale-105 font-medium"
-            onClick={() => {
-              // TODO: Add play functionality when game is implemented
-              console.log('Play button clicked');
-            }}
+            onClick={() => setGameKey(k => k + 1)}
           >
             <Play size={18} />
-            Play
+            {`Play${gameKey > 0 ? ' Again' : ''}`}
           </button>
 
           {/* AI/Manual Toggle */}
@@ -147,11 +140,7 @@ export default function HomePage() {
                 ? 'bg-accent-secondary/20 hover:bg-accent-secondary/30 border-accent-secondary/30 text-accent-secondary'
                 : 'bg-accent-primary/20 hover:bg-accent-primary/30 border-accent-primary/30 text-accent-primary'
             }`}
-            onClick={() => {
-              setIsAIMode(!isAIMode);
-              // TODO: Add toggle functionality when game is implemented
-              console.log(`Switched to ${!isAIMode ? 'AI' : 'Manual'} mode`);
-            }}
+            onClick={() => setIsAIMode(!isAIMode)}
           >
             {isAIMode ? (
               <>
