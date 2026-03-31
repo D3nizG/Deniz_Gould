@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import data from '@/public/resume.json';
 import { playNote } from '@/lib/audio';
 import { fadeSlideUp } from '@/lib/motion.client';
+import { Github, Play } from 'lucide-react';
 
 export default function ProjectsSection() {
   const [selected, setSelected] = useState<number | null>(null);
@@ -100,12 +101,40 @@ export default function ProjectsSection() {
                 </ul>
               )}
 
-              <button
-                className="ml-auto block px-4 py-2 bg-accent-primary/20 rounded hover:bg-accent-primary/30 transition"
-                onClick={() => setSelected(null)}
-              >
-                Close
-              </button>
+              <div className="mt-6 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <a
+                    href={data.projects[selected].githubUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${data.projects[selected].name} GitHub repository`}
+                    className="inline-flex items-center gap-2 rounded-lg border border-accent-primary/30 bg-accent-primary/10 px-4 py-2 text-sm font-medium text-accent-primary transition hover:bg-accent-primary/20"
+                  >
+                    <Github size={16} />
+                    GitHub
+                  </a>
+
+                  {data.projects[selected].playUrl ? (
+                    <a
+                      href={data.projects[selected].playUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Play ${data.projects[selected].name}`}
+                      className="inline-flex items-center gap-2 rounded-lg border border-accent-secondary/30 bg-accent-secondary/10 px-4 py-2 text-sm font-medium text-accent-secondary transition hover:bg-accent-secondary/20"
+                    >
+                      <Play size={16} />
+                      Play
+                    </a>
+                  ) : null}
+                </div>
+
+                <button
+                  className="px-4 py-2 bg-accent-primary/20 rounded hover:bg-accent-primary/30 transition"
+                  onClick={() => setSelected(null)}
+                >
+                  Close
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
