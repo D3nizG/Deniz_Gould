@@ -4,6 +4,8 @@
 
 @layer base {
   :root {
+    --font-sans: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", "SF Mono", Consolas, monospace;
     /* Light theme colors */
     --bg: 249 250 251; /* gray-50 */
     --fg: 17 24 39; /* gray-900 */
@@ -23,6 +25,11 @@
 /* Custom scroll-bar, selection, transition helpers */
 html {
   scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {

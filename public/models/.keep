@@ -1,0 +1,3 @@
+// Keep directory in git
+# This directory holds the converted ONNX models
+# Run: npm run ai:setup to generate models
