@@ -319,7 +319,7 @@
             ],
             "summary": "Multiplayer Senet platform with matchmaking, private lobbies, AI, and persistent player profiles.",
             "githubUrl": "https://github.com/D3nizG/sennet",
-            "playUrl": "",
+            "playUrl": "sennet.d3nizg.dev",
             "metrics": [
                 "Server-authoritative gameplay with realtime turns over Socket.IO",
                 "Online matchmaking, private friend lobbies, and reconnection support",
