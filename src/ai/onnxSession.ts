@@ -1,14 +1,25 @@
+// @ts-nocheck
 // ONNX Runtime Session Manager
-import * as ort from 'onnxruntime-web';
-import { MODEL_CONFIG, FRAME_CONFIG, type ModelMetadata } from './constants';
+import { MODEL_CONFIG, type ModelMetadata } from './constants';
 
-let session: ort.InferenceSession | null = null;
+let session: any | null = null;
 let metadata: ModelMetadata | null = null;
 let initPromise: Promise<void> | null = null;
+let ortModulePromise: Promise<any> | null = null;
+const ORT_MODULE_URL = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/ort.min.mjs';
+const ORT_WASM_BASE_URL = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/';
+
+async function loadOrt() {
+  if (!ortModulePromise) {
+    ortModulePromise = import(/* webpackIgnore: true */ ORT_MODULE_URL);
+  }
+
+  return ortModulePromise;
+}
 
 /**
  * Initialize ONNX session with lazy loading
- * Uses WebGL/WebGPU backend for acceleration
+ * Uses the browser WASM runtime loaded at runtime to avoid bundler conflicts.
  */
 export async function initSession(): Promise<{ success: boolean; error?: string }> {
   // Return existing promise if already initializing
@@ -32,19 +43,12 @@ export async function initSession(): Promise<{ success: boolean; error?: string 
         console.warn('[ONNX] Could not load metadata:', e);
       }
 
-      // Configure ONNX Runtime with WebGL/WebGPU preference
-      const options: ort.InferenceSession.SessionOptions = {
-        executionProviders: [
-          {
-            name: 'webgpu',
-            deviceType: 'gpu',
-          },
-          {
-            name: 'webgl',
-            deviceType: 'gpu',
-          },
-          'wasm'
-        ],
+      const ort = await loadOrt();
+      ort.env.wasm.wasmPaths = ORT_WASM_BASE_URL;
+
+      // Use the plain WASM execution provider to keep the portfolio build portable.
+      const options = {
+        executionProviders: ['wasm'],
         graphOptimizationLevel: 'all',
       };
 
@@ -87,6 +91,7 @@ export async function infer(frameStack: Float32Array): Promise<number> {
 
   try {
     // Create input tensor
+    const ort = await loadOrt();
     const inputTensor = new ort.Tensor(
       'float32',
       frameStack,
@@ -143,4 +148,3 @@ export async function destroySession(): Promise<void> {
   initPromise = null;
   metadata = null;
 }
-

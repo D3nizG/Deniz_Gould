@@ -85,7 +85,7 @@ export default function DiagnosticsPage() {
     setWorker(w);
 
     w.onmessage = (e) => {
-      const { type, success, action, actionName, error } = e.data;
+      const { type, action, actionName, error } = e.data;
 
       if (type === 'infer') {
         setInferenceResult({
@@ -350,4 +350,3 @@ npm run ai:setup`}</code>
     </div>
   );
 }
-

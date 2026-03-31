@@ -6,6 +6,11 @@ import { fadeSlideUp } from '../../lib/motion.client';
 import data from '../../public/resume.json';
 import { Linkedin, Github, Twitter, Instagram, Mail, Play, Bot, User } from 'lucide-react';
 import { useState } from 'react';
+import AboutSection from '@/components/sections/AboutSection';
+import SkillsSection from '@/components/sections/SkillsSection';
+import ProjectsSection from '@/components/sections/ProjectsSection';
+import EducationSection from '@/components/sections/EducationSection';
+import { personStructuredData } from '@/lib/site';
 
 const MsPacmanCanvas = dynamic(() => import('../../src/components/MsPacmanCanvas'), { ssr: false, loading: () => null });
 
@@ -42,7 +47,15 @@ export default function HomePage() {
   ];
 
   return (
-    <section className="flex flex-col items-center justify-center gap-4 text-center min-h-[calc(100vh-10rem)]">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(personStructuredData) }}
+      />
+      <section
+        id="home"
+        className="flex flex-col items-center justify-center gap-4 text-center min-h-screen py-16 scroll-mt-24"
+      >
       {/* Header Content - Moved up more with reduced top padding */}
       <motion.div
         className="flex flex-col items-center gap-3 -mt-8"
@@ -107,13 +120,15 @@ export default function HomePage() {
       >
         {/* Game Container */}
         <motion.div
-          className="relative w-full max-w-xl aspect-square bg-black rounded-2xl overflow-hidden"
+          className="relative w-full max-w-xl bg-black rounded-2xl overflow-hidden py-[30%] px-0"
           variants={fadeSlideUp}
           initial="hidden"
           animate="visible"
           transition={{ delay: 0.6 }}
         >
-          <MsPacmanCanvas key={gameKey} mode={isAIMode ? 'ai' : 'manual'} />
+          <div className="w-full aspect-square ">
+            <MsPacmanCanvas key={gameKey} mode={isAIMode ? 'ai' : 'manual'} />
+          </div>
         </motion.div>
 
         {/* Game Controls */}
@@ -170,6 +185,12 @@ export default function HomePage() {
           }
         </motion.p>
       </motion.div>
-    </section>
+      </section>
+
+      <AboutSection />
+      <SkillsSection />
+      <ProjectsSection />
+      <EducationSection />
+    </>
   );
 }

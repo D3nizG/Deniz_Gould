@@ -173,7 +173,7 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
     <div className="relative w-full h-full">
       <canvas
         ref={canvasRef}
-        className="w-full h-full"
+        className="block w-full h-full mx-auto"
         style={{ imageRendering: 'pixelated' }}
       />
       
@@ -232,4 +232,3 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
     </div>
   );
 }
-
