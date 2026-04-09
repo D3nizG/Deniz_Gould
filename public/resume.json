@@ -291,6 +291,25 @@
     },
     "projects": [
         {
+            "name": "Tic-Tac-Gulp",
+            "stack": [
+                "React",
+                "TypeScript",
+                "Three.js",
+                "Socket.IO",
+                "Node.js"
+            ],
+            "summary": "Realtime multiplayer 3D browser game — a strategic twist on tic-tac-toe where players stack sized pieces to gulp opponents.",
+            "githubUrl": "https://github.com/D3nizG/tic-tac-gulp",
+            "playUrl": "https://tic-tac-gulp.d3nizg.dev",
+            "metrics": [
+                "Server-authoritative game engine with shared TypeScript logic across client and server",
+                "Realtime multiplayer over Socket.IO with 60-second disconnect/reconnect and forfeit handling",
+                "Full 3D board rendered via React Three Fiber with constrained OrbitControls and spring-physics UI"
+            ],
+            "longDescription": "Tic-Tac-Gulp reimagines tic-tac-toe with a stacking mechanic — larger pieces can gulp smaller ones, making every cell a strategic decision. Built as a TypeScript monorepo, the shared game engine (29 unit tests) runs identically on the server for authoritative validation and on the client for move highlighting. The Node.js + Socket.IO backend handles room creation, reconnection sessions, and a 60-second forfeit timer. The React frontend pairs React Three Fiber for a fully 3D board — with drop animations, win-cell pulses, and hover ghost previews — with Motion for React for all UI transitions. Deployed on Railway (backend) and Vercel (frontend) with a custom domain."
+        },
+        {
             "name": "AI-Powered Smart Calendar",
             "stack": [
                 "Java",
