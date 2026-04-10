@@ -1,29 +1,80 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { MsPacmanGame, type GameState } from './MsPacmanGame';
+import { startTransition, useEffect, useRef, useState } from 'react';
+import { MsPacmanGame, MS_PACMAN_WORLD_SIZE, type GameState } from './MsPacmanGame';
 import { TIMING } from '../ai/constants';
+
+const SESSION_SCORE_STORAGE_KEY = 'ms-pacman-session-score';
+const HIGH_SCORE_STORAGE_KEY = 'ms-pacman-high-score';
 
 interface MsPacmanCanvasProps {
   mode: 'manual' | 'ai';
   onGameStateChange?: (state: GameState) => void;
 }
 
+function areGameStatesEqual(previous: GameState | null, next: GameState): boolean {
+  if (!previous) {
+    return false;
+  }
+
+  return (
+    previous.score === next.score &&
+    previous.lives === next.lives &&
+    previous.pelletsLeft === next.pelletsLeft &&
+    previous.mode === next.mode &&
+    previous.gameOver === next.gameOver &&
+    previous.paused === next.paused &&
+    previous.level === next.level
+  );
+}
+
 export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<MsPacmanGame | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const animationRef = useRef<number | null>(null);
   const lastDecisionTime = useRef<number>(0);
-  
-  const [modelStatus, setModelStatus] = useState<{
-    loaded: boolean;
-    steps?: number;
-    error?: string;
-  }>({ loaded: false });
-  
+  const lastCanvasSizeRef = useRef({ width: 0, height: 0 });
+  const lastPublishedStateRef = useRef<GameState | null>(null);
+  const lastRoundScoreRef = useRef(0);
+  const sessionScoreRef = useRef(0);
+  const highScoreRef = useRef(0);
+  const onGameStateChangeRef = useRef(onGameStateChange);
+
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [currentAction, setCurrentAction] = useState<string>('NOOP');
+  const [isManualSurfaceFocused, setIsManualSurfaceFocused] = useState(false);
+  const [sessionScore, setSessionScore] = useState(0);
+  const [highScore, setHighScore] = useState(0);
+
+  useEffect(() => {
+    onGameStateChangeRef.current = onGameStateChange;
+  }, [onGameStateChange]);
+
+  useEffect(() => {
+    sessionScoreRef.current = sessionScore;
+  }, [sessionScore]);
+
+  useEffect(() => {
+    highScoreRef.current = highScore;
+  }, [highScore]);
+
+  useEffect(() => {
+    try {
+      const savedSessionScore = window.sessionStorage.getItem(SESSION_SCORE_STORAGE_KEY);
+      const savedHighScore = window.localStorage.getItem(HIGH_SCORE_STORAGE_KEY);
+
+      if (savedSessionScore) {
+        setSessionScore(Number.parseInt(savedSessionScore, 10) || 0);
+      }
+
+      if (savedHighScore) {
+        setHighScore(Number.parseInt(savedHighScore, 10) || 0);
+      }
+    } catch (error) {
+      console.warn('[MsPacmanCanvas] Unable to read saved scores:', error);
+    }
+  }, []);
   
   // Initialize worker
   useEffect(() => {
@@ -32,31 +83,20 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
     
     // Handle worker messages
     worker.onmessage = (e) => {
-      const { type, success, action, actionName, status, error } = e.data;
+      const { type, success, action, error } = e.data;
       
       switch (type) {
         case 'init':
           if (success) {
             console.log('[AI] Model initialized successfully');
-            // Get status after init
-            worker.postMessage({ type: 'status' });
           } else {
             console.error('[AI] Model initialization failed:', error);
-            setModelStatus({ loaded: false, error });
           }
-          break;
-          
-        case 'status':
-          setModelStatus({
-            loaded: status.loaded,
-            steps: status.metadata?.steps,
-          });
           break;
           
         case 'infer':
           if (action !== undefined && gameRef.current) {
             gameRef.current.handleAIAction(action);
-            setCurrentAction(actionName || 'UNKNOWN');
           }
           break;
           
@@ -77,27 +117,56 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
   // Initialize game
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    // Set canvas size
-    const container = canvas.parentElement;
-    if (container) {
-      const size = Math.min(container.clientWidth, container.clientHeight);
-      canvas.width = size;
-      canvas.height = size;
-    }
-    
-    // Create game instance
-    const game = new MsPacmanGame(canvas);
-    gameRef.current = game;
-    
-    // Initial render
-    game.render();
-    
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
+    const surface = surfaceRef.current;
+    if (!canvas || !surface) return;
+
+    const syncCanvasSize = (width: number, height: number) => {
+      const nextWidth = Math.max(1, Math.round(width));
+      const nextHeight = Math.max(1, Math.round(height));
+
+      if (
+        lastCanvasSizeRef.current.width === nextWidth &&
+        lastCanvasSizeRef.current.height === nextHeight
+      ) {
+        return;
       }
+
+      lastCanvasSizeRef.current = { width: nextWidth, height: nextHeight };
+
+      if (!gameRef.current) {
+        canvas.width = nextWidth;
+        canvas.height = nextHeight;
+
+        const game = new MsPacmanGame(canvas);
+        gameRef.current = game;
+
+        const initialState = game.getState();
+        lastPublishedStateRef.current = initialState;
+        startTransition(() => setGameState(initialState));
+        onGameStateChangeRef.current?.(initialState);
+        game.render();
+        return;
+      }
+
+      gameRef.current.resize(nextWidth, nextHeight);
+      gameRef.current.render();
+    };
+
+    syncCanvasSize(surface.clientWidth, surface.clientHeight);
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        return;
+      }
+
+      syncCanvasSize(entry.contentRect.width, entry.contentRect.height);
+    });
+
+    resizeObserver.observe(surface);
+
+    return () => {
+      resizeObserver.disconnect();
     };
   }, []);
   
@@ -107,20 +176,18 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
       gameRef.current.setMode(mode);
     }
   }, [mode]);
-  
-  // Keyboard input for manual mode
+
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (mode === 'manual' && gameRef.current) {
-        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(e.key)) {
-          e.preventDefault();
-          gameRef.current.handleKeyPress(e.key);
-        }
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    if (mode !== 'manual') {
+      setIsManualSurfaceFocused(false);
+      return;
+    }
+
+    const focusSurface = requestAnimationFrame(() => {
+      surfaceRef.current?.focus();
+    });
+
+    return () => cancelAnimationFrame(focusSurface);
   }, [mode]);
   
   // Game loop
@@ -140,8 +207,11 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
         
         // Update state
         const state = gameRef.current.getState();
-        setGameState(state);
-        onGameStateChange?.(state);
+        if (!areGameStatesEqual(lastPublishedStateRef.current, state)) {
+          lastPublishedStateRef.current = state;
+          startTransition(() => setGameState(state));
+          onGameStateChangeRef.current?.(state);
+        }
         
         // AI decision (if in AI mode)
         if (mode === 'ai' && currentTime - lastDecisionTime.current >= TIMING.MS_PER_DECISION) {
@@ -167,68 +237,153 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [mode, onGameStateChange]);
+  }, [mode]);
+
+  useEffect(() => {
+    if (!gameState) {
+      return;
+    }
+
+    if (gameState.score < lastRoundScoreRef.current) {
+      lastRoundScoreRef.current = gameState.score;
+      return;
+    }
+
+    const scoreDelta = gameState.score - lastRoundScoreRef.current;
+
+    if (scoreDelta <= 0) {
+      return;
+    }
+
+    lastRoundScoreRef.current = gameState.score;
+
+    const nextSessionScore = sessionScoreRef.current + scoreDelta;
+    const nextHighScore = Math.max(highScoreRef.current, nextSessionScore);
+
+    sessionScoreRef.current = nextSessionScore;
+    highScoreRef.current = nextHighScore;
+
+    setSessionScore(nextSessionScore);
+    setHighScore(nextHighScore);
+
+    try {
+      window.sessionStorage.setItem(SESSION_SCORE_STORAGE_KEY, String(nextSessionScore));
+    } catch (error) {
+      console.warn('[MsPacmanCanvas] Unable to save session score:', error);
+    }
+
+    try {
+      window.localStorage.setItem(HIGH_SCORE_STORAGE_KEY, String(nextHighScore));
+    } catch (error) {
+      console.warn('[MsPacmanCanvas] Unable to save high score:', error);
+    }
+  }, [gameState]);
+
+  const handleSurfaceKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (mode !== 'manual' || !gameRef.current) {
+      return;
+    }
+
+    if (
+      ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(e.key)
+    ) {
+      e.preventDefault();
+      gameRef.current.handleKeyPress(e.key);
+    }
+  };
+
+  const handleSurfacePointerDown = () => {
+    if (mode === 'manual') {
+      surfaceRef.current?.focus();
+    }
+  };
+
+  const collectedFruit: string[] = [];
+  const sessionScoreDisplay = sessionScore.toString().padStart(6, '0');
+  const highScoreDisplay = highScore.toString().padStart(6, '0');
   
   return (
-    <div className="relative w-full h-full">
-      <canvas
-        ref={canvasRef}
-        className="block w-full h-full mx-auto"
-        style={{ imageRendering: 'pixelated' }}
-      />
-      
-      {/* HUD Overlay */}
-      <div className="absolute top-4 left-4 right-4 flex justify-between items-start text-white font-mono text-sm pointer-events-none">
-        <div className="bg-black/70 px-3 py-2 rounded backdrop-blur-sm">
-          <div>Score: {gameState?.score ?? 0}</div>
-          <div>Lives: {'♥'.repeat(gameState?.lives ?? 0)}</div>
-          <div>Pellets: {gameState?.pelletsLeft ?? 0}</div>
-        </div>
-        
-        <div className="bg-black/70 px-3 py-2 rounded backdrop-blur-sm text-right">
-          <div>Mode: {mode.toUpperCase()}</div>
-          {mode === 'ai' && (
-            <>
-              <div className={modelStatus.loaded ? 'text-green-400' : 'text-red-400'}>
-                Model: {modelStatus.loaded ? 'Loaded' : 'Not Loaded'}
-              </div>
-              {modelStatus.steps && (
-                <div className="text-xs text-gray-400">
-                  Steps: {modelStatus.steps.toLocaleString()}
-                </div>
-              )}
-              {modelStatus.loaded && (
-                <div className="text-xs text-blue-400">
-                  Action: {currentAction}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-      
-      {/* Game Over */}
-      {gameState?.gameOver && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="text-center text-white">
-            <h2 className="text-4xl font-bold mb-4">Game Over</h2>
-            <p className="text-xl mb-2">Final Score: {gameState.score}</p>
-            <button
-              className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium pointer-events-auto"
-              onClick={() => gameRef.current?.reset()}
-            >
-              Play Again
-            </button>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-start font-mono text-white">
+        <div className="flex flex-1 justify-start">
+          <div className="flex flex-col items-start text-left">
+            <div className="animate-pulse text-[11px] uppercase tracking-[0.45em] text-red-400">
+              1UP
+            </div>
+            <div className="mt-1 text-xl leading-none sm:text-2xl">{sessionScoreDisplay}</div>
           </div>
         </div>
-      )}
-      
-      {/* Controls hint */}
-      {mode === 'manual' && !gameState?.gameOver && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/70 px-4 py-2 rounded backdrop-blur-sm text-white text-xs pointer-events-none">
-          Use Arrow Keys or WASD to move
+
+        <div className="flex shrink-0 flex-col items-center text-center">
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-white/70">
+            <span className="h-px w-8 bg-white/20 sm:w-12" />
+            <span>High Score</span>
+            <span className="h-px w-8 bg-white/20 sm:w-12" />
+          </div>
+          <div className="mt-1 text-xl leading-none sm:text-2xl">{highScoreDisplay}</div>
         </div>
-      )}
+
+        <div aria-hidden className="flex-1" />
+      </div>
+
+      <div
+        ref={surfaceRef}
+        tabIndex={mode === 'manual' ? 0 : -1}
+        aria-label={
+          mode === 'manual'
+            ? 'Ms. Pac-Man game surface. Use Arrow keys or WASD to move.'
+            : 'Ms. Pac-Man AI game surface.'
+        }
+        className={`relative w-full overflow-hidden rounded-xl border border-accent-primary/20 bg-black outline-none transition-shadow ${
+          mode === 'manual' ? 'cursor-pointer' : ''
+        } ${
+          isManualSurfaceFocused
+            ? 'ring-2 ring-accent-primary/60 ring-offset-2 ring-offset-black'
+            : ''
+        }`}
+        style={{ aspectRatio: `${MS_PACMAN_WORLD_SIZE.width} / ${MS_PACMAN_WORLD_SIZE.height}` }}
+        onBlur={() => setIsManualSurfaceFocused(false)}
+        onFocus={() => setIsManualSurfaceFocused(true)}
+        onKeyDown={handleSurfaceKeyDown}
+        onPointerDown={handleSurfacePointerDown}
+      >
+        <canvas
+          ref={canvasRef}
+          className="block h-full w-full"
+          style={{ imageRendering: 'pixelated' }}
+        />
+
+        {gameState?.gameOver && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="px-6 text-center text-white">
+              <h2 className="text-3xl font-bold sm:text-4xl">Game Over</h2>
+              <p className="mt-3 text-lg">Final Score: {gameState.score}</p>
+              <button
+                className="mt-5 rounded bg-blue-600 px-6 py-2 font-medium hover:bg-blue-700"
+                onClick={() => gameRef.current?.reset()}
+              >
+                Play Again
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between font-mono text-white">
+        <div className="flex min-h-6 items-center gap-2 text-lg leading-none">
+          {Array.from({ length: gameState?.lives ?? 0 }, (_, index) => (
+            <span key={index} className="text-yellow-300">
+              ♥
+            </span>
+          ))}
+        </div>
+
+        <div className="flex min-h-6 flex-row-reverse items-center gap-2 text-lg leading-none text-orange-300">
+          {collectedFruit.map((fruit, index) => (
+            <span key={`${fruit}-${index}`}>{fruit}</span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

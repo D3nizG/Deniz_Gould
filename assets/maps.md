@@ -1,4 +1,12 @@
-pacman map:
+# Ms. Pac-Man Map Notes
+
+The active playable map for the portfolio game lives in [`assets/msmap1.json`](./msmap1.json).
+
+- Logical maze size: `28 x 31` tiles
+- The canvas now scales from that map aspect ratio instead of a forced square slot.
+- HUD rails such as `1UP`, `High Score`, lives, and the future fruit lane are DOM layout outside the maze itself, so this file is only about maze reference data.
+
+## Reference Layout
 
 [
     "############################",
@@ -37,7 +45,9 @@ pacman map:
 "..........................",
 "############################",
 
-// Maze 1 (Pink / Orange) — top-left
+## Alternate Maze Experiments
+
+### Maze 1 (Pink / Orange)
 const MAZE_1_WALLS = [
     "############################",
     "#......#............#......#",
@@ -73,19 +83,19 @@ const MAZE_1_WALLS = [
 ];
 
 
-// Maze 2 (Light Blue) — top-right
+### Maze 2 (Light Blue)
 const MAZE_2_WALLS = [
 
 ];
 
 
-// Maze 3 (Brown) — bottom-left
+### Maze 3 (Brown)
 const MAZE_3_WALLS = [
 
 ];
 
 
-// Maze 4 (Dark Blue) — bottom-right
+### Maze 4 (Dark Blue)
 const MAZE_4_WALLS = [
 
 ];

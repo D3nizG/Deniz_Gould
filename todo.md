@@ -52,6 +52,10 @@
   - Optional production guards:
     Keep /ai/diagnostics disabled in production by default, and confirm the Ms. Pac-Man AI assets are intentional to ship publicly
     on the portfolio domain.
+  - Game UI follow-ups:
+    The playable shell now uses a centered `1UP` / `High Score` HUD above the maze and a lives rail below it. Remaining follow-up
+    work is to replace the temporary heart lives with little Pac-Man icons, wire in real collected-fruit history for the lower-right
+    lane once that gameplay state exists, and finish visual verification with browser automation when `agent-browser` is available.
 
   ## Non-Coding Launch Steps
 

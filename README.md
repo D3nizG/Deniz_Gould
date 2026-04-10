@@ -58,6 +58,22 @@ DNS values can change by provider setup, so use the exact values shown in the Ve
 
 The current repo includes a committed ONNX model in [`public/models`](./public/models), so the interactive AI/game experience is deployable as-is.
 
+### Game UI behavior
+
+- The playable board now scales from the actual Ms. Pac-Man map aspect ratio instead of a forced square slot.
+- Canvas sizing is driven by a resize-observed DOM surface, so the board stays centered as the container changes size.
+- The top HUD now uses a retro arcade-style layout: a blinking `1UP` with the session score on the left, and `High Score` centered above the board.
+- The bottom HUD keeps lives in the lower-left lane aligned to the maze edge, while the lower-right lane is reserved for round fruit history once that gameplay state exists.
+- The AI/manual toggle and restart controls live in the bezel chrome below the game surface and wrap cleanly on smaller screens.
+
+### Manual play
+
+1. Switch the bezel to `Manual`.
+2. Click the game surface, or tab to it, to focus keyboard controls.
+3. Use `Arrow Keys` or `WASD` to move.
+
+Manual input is intentionally scoped to the focused game surface instead of the whole window so the page remains usable around the game.
+
 ### Run the diagnostics locally
 
 ```bash

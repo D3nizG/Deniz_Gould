@@ -28,6 +28,18 @@ interface Ghost {
   frightTimer: number;
 }
 
+interface RenderMetrics {
+  boardHeight: number;
+  boardWidth: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+export const MS_PACMAN_WORLD_SIZE = {
+  width: mapData.width,
+  height: mapData.height,
+} as const;
+
 export class MsPacmanGame {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -38,6 +50,7 @@ export class MsPacmanGame {
   private tileSize: number;
   private mapWidth: number;
   private mapHeight: number;
+  private renderMetrics: RenderMetrics;
   
   // Game entities
   private pacman: Position & { direction: { dx: number; dy: number }; mouthAngle: number };
@@ -59,10 +72,14 @@ export class MsPacmanGame {
     this.map = mapData.walls;
     this.mapWidth = mapData.width;
     this.mapHeight = mapData.height;
-    
-    // Calculate tile size based on canvas
-    const canvasSize = Math.min(canvas.width, canvas.height);
-    this.tileSize = Math.floor(canvasSize / Math.max(this.mapWidth, this.mapHeight));
+    this.tileSize = 1;
+    this.renderMetrics = {
+      boardHeight: 0,
+      boardWidth: 0,
+      offsetX: 0,
+      offsetY: 0,
+    };
+    this.recalculateLayout();
     
     // Initialize game state
     this.state = {
@@ -97,6 +114,38 @@ export class MsPacmanGame {
     this.powerPellets = new Set();
     this.initializePellets();
   }
+
+  private recalculateLayout(): void {
+    const tileSizeByWidth = Math.floor(this.canvas.width / this.mapWidth);
+    const tileSizeByHeight = Math.floor(this.canvas.height / this.mapHeight);
+
+    this.tileSize = Math.max(1, Math.min(tileSizeByWidth, tileSizeByHeight));
+
+    const boardWidth = this.tileSize * this.mapWidth;
+    const boardHeight = this.tileSize * this.mapHeight;
+
+    this.renderMetrics = {
+      boardHeight,
+      boardWidth,
+      offsetX: Math.floor((this.canvas.width - boardWidth) / 2),
+      offsetY: Math.floor((this.canvas.height - boardHeight) / 2),
+    };
+  }
+
+  private toCanvasX(tileX: number): number {
+    return this.renderMetrics.offsetX + tileX * this.tileSize;
+  }
+
+  private toCanvasY(tileY: number): number {
+    return this.renderMetrics.offsetY + tileY * this.tileSize;
+  }
+
+  private getEntityCenter(tileX: number, tileY: number): Position {
+    return {
+      x: this.toCanvasX(tileX) + this.tileSize / 2,
+      y: this.toCanvasY(tileY) + this.tileSize / 2,
+    };
+  }
   
   private initializePellets(): void {
     // Add pellets to all walkable tiles
@@ -119,6 +168,25 @@ export class MsPacmanGame {
   
   public getState(): GameState {
     return { ...this.state };
+  }
+
+  public resize(width: number, height: number): void {
+    const nextWidth = Math.max(1, Math.floor(width));
+    const nextHeight = Math.max(1, Math.floor(height));
+
+    if (this.canvas.width === nextWidth && this.canvas.height === nextHeight) {
+      return;
+    }
+
+    if (this.canvas.width !== nextWidth) {
+      this.canvas.width = nextWidth;
+    }
+
+    if (this.canvas.height !== nextHeight) {
+      this.canvas.height = nextHeight;
+    }
+
+    this.recalculateLayout();
   }
   
   public handleKeyPress(key: string): void {
@@ -316,15 +384,15 @@ export class MsPacmanGame {
     const tileSize = this.tileSize;
     
     ctx.strokeStyle = '#2121ff';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, tileSize * 0.12);
     
     for (let y = 0; y < map.length; y++) {
       for (let x = 0; x < map[y].length; x++) {
         const tile = map[y][x];
         if (tile === '#' || tile === '-') {
           ctx.strokeRect(
-            x * tileSize,
-            y * tileSize,
+            this.toCanvasX(x),
+            this.toCanvasY(y),
             tileSize,
             tileSize
           );
@@ -341,8 +409,8 @@ export class MsPacmanGame {
       const [x, y] = pellet.split(',').map(Number);
       ctx.beginPath();
       ctx.arc(
-        x * tileSize + tileSize / 2,
-        y * tileSize + tileSize / 2,
+        this.toCanvasX(x) + tileSize / 2,
+        this.toCanvasY(y) + tileSize / 2,
         tileSize / 8,
         0,
         Math.PI * 2
@@ -357,8 +425,8 @@ export class MsPacmanGame {
       const [x, y] = pellet.split(',').map(Number);
       ctx.beginPath();
       ctx.arc(
-        x * tileSize + tileSize / 2,
-        y * tileSize + tileSize / 2,
+        this.toCanvasX(x) + tileSize / 2,
+        this.toCanvasY(y) + tileSize / 2,
         tileSize * pulseSize,
         0,
         Math.PI * 2
@@ -370,8 +438,7 @@ export class MsPacmanGame {
   private renderPacman(): void {
     const { ctx, tileSize, pacman } = this;
     
-    const centerX = pacman.x * tileSize + tileSize / 2;
-    const centerY = pacman.y * tileSize + tileSize / 2;
+    const { x: centerX, y: centerY } = this.getEntityCenter(pacman.x, pacman.y);
     const radius = tileSize * 0.4;
     
     // Mouth animation
@@ -395,8 +462,7 @@ export class MsPacmanGame {
     const { ctx, tileSize, ghosts } = this;
     
     ghosts.forEach(ghost => {
-      const centerX = ghost.x * tileSize + tileSize / 2;
-      const centerY = ghost.y * tileSize + tileSize / 2;
+      const { x: centerX, y: centerY } = this.getEntityCenter(ghost.x, ghost.y);
       const radius = tileSize * 0.4;
       
       // Ghost color
@@ -453,4 +519,3 @@ export class MsPacmanGame {
     this.resetPositions();
   }
 }
-
