@@ -40,34 +40,43 @@ export const MS_PACMAN_WORLD_SIZE = {
   height: mapData.height,
 } as const;
 
+const PACMAN_SPEED_TILES_PER_SECOND = 4.15;
+const GHOST_SPEED_TILES_PER_SECOND = 3.4;
+const FRIGHTENED_GHOST_SPEED_TILES_PER_SECOND = 2.35;
+const FRIGHTENED_DURATION_MS = 3000;
+const GHOST_DECISION_INTERVAL_MS = 180;
+const MAX_FRAME_TIME_MS = 34;
+const COLLISION_DISTANCE = 0.55;
+
 export class MsPacmanGame {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private state: GameState;
-  
+
   // Map data
   private map: string[];
   private tileSize: number;
   private mapWidth: number;
   private mapHeight: number;
   private renderMetrics: RenderMetrics;
-  
+
   // Game entities
   private pacman: Position & { direction: { dx: number; dy: number }; mouthAngle: number };
   private ghosts: Ghost[];
   private pellets: Set<string>;
   private powerPellets: Set<string>;
-  
+
   // Animation
   private animationFrame: number = 0;
-  
+  private ghostDecisionTimerMs: number = 0;
+
   // Input
   private nextDirection: { dx: number; dy: number } | null = null;
-  
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
-    
+
     // Load map
     this.map = mapData.walls;
     this.mapWidth = mapData.width;
@@ -80,7 +89,7 @@ export class MsPacmanGame {
       offsetY: 0,
     };
     this.recalculateLayout();
-    
+
     // Initialize game state
     this.state = {
       score: 0,
@@ -91,7 +100,7 @@ export class MsPacmanGame {
       paused: false,
       level: 1,
     };
-    
+
     // Initialize entities
     this.pacman = {
       x: mapData.pacmanStart.x,
@@ -99,7 +108,7 @@ export class MsPacmanGame {
       direction: { dx: 0, dy: 0 },
       mouthAngle: 0,
     };
-    
+
     this.ghosts = mapData.ghostStarts.map(g => ({
       x: g.x,
       y: g.y,
@@ -108,7 +117,7 @@ export class MsPacmanGame {
       mode: 'scatter' as const,
       frightTimer: 0,
     }));
-    
+
     // Initialize pellets
     this.pellets = new Set();
     this.powerPellets = new Set();
@@ -146,7 +155,7 @@ export class MsPacmanGame {
       y: this.toCanvasY(tileY) + this.tileSize / 2,
     };
   }
-  
+
   private initializePellets(): void {
     // Add pellets to all walkable tiles
     for (let y = 0; y < this.map.length; y++) {
@@ -161,11 +170,11 @@ export class MsPacmanGame {
     }
     this.state.pelletsLeft = this.pellets.size + this.powerPellets.size;
   }
-  
+
   public setMode(mode: 'manual' | 'ai'): void {
     this.state.mode = mode;
   }
-  
+
   public getState(): GameState {
     return { ...this.state };
   }
@@ -188,10 +197,10 @@ export class MsPacmanGame {
 
     this.recalculateLayout();
   }
-  
+
   public handleKeyPress(key: string): void {
     if (this.state.mode !== 'manual') return;
-    
+
     switch (key) {
       case 'ArrowUp':
       case 'w':
@@ -215,54 +224,58 @@ export class MsPacmanGame {
         break;
     }
   }
-  
+
   public handleAIAction(action: number): void {
     if (this.state.mode !== 'ai') return;
-    
+
     const direction = ACTION_TO_DIRECTION[action as keyof typeof ACTION_TO_DIRECTION];
     if (direction) {
       this.nextDirection = direction;
     }
   }
-  
+
   private isWalkable(x: number, y: number): boolean {
     if (y < 0 || y >= this.map.length) return false;
     if (x < 0 || x >= this.map[y].length) return false;
-    
+
     const tile = this.map[y][x];
     return tile !== '#' && tile !== '-';
   }
-  
+
   public update(_deltaTime: number): void {
     if (this.state.gameOver || this.state.paused) return;
-    
-    this.animationFrame++;
-    
+
+    const deltaTime = Math.min(Math.max(_deltaTime, 0), MAX_FRAME_TIME_MS);
+    const deltaSeconds = deltaTime / 1000;
+
+    this.animationFrame += deltaTime / (1000 / 60);
+    this.ghostDecisionTimerMs += deltaTime;
+
     // Update Pac-Man position
     if (this.nextDirection) {
       const newX = Math.round(this.pacman.x + this.nextDirection.dx * 0.1);
       const newY = Math.round(this.pacman.y + this.nextDirection.dy * 0.1);
-      
+
       if (this.isWalkable(newX, newY)) {
         this.pacman.direction = this.nextDirection;
       }
     }
-    
+
     // Move Pac-Man
     if (this.pacman.direction.dx !== 0 || this.pacman.direction.dy !== 0) {
-      const newX = this.pacman.x + this.pacman.direction.dx * 0.1;
-      const newY = this.pacman.y + this.pacman.direction.dy * 0.1;
-      
+      const newX = this.pacman.x + this.pacman.direction.dx * PACMAN_SPEED_TILES_PER_SECOND * deltaSeconds;
+      const newY = this.pacman.y + this.pacman.direction.dy * PACMAN_SPEED_TILES_PER_SECOND * deltaSeconds;
+
       if (this.isWalkable(Math.round(newX), Math.round(newY))) {
         this.pacman.x = newX;
         this.pacman.y = newY;
-        
+
         // Wrap around tunnels
         if (this.pacman.x < 0) this.pacman.x = this.mapWidth - 1;
         if (this.pacman.x >= this.mapWidth) this.pacman.x = 0;
       }
     }
-    
+
     // Check pellet collision
     const pacmanTile = `${Math.round(this.pacman.x)},${Math.round(this.pacman.y)}`;
     if (this.pellets.has(pacmanTile)) {
@@ -277,62 +290,65 @@ export class MsPacmanGame {
       // Frighten ghosts
       this.ghosts.forEach(g => {
         g.mode = 'frightened';
-        g.frightTimer = 180; // ~3 seconds at 60 FPS
+        g.frightTimer = FRIGHTENED_DURATION_MS;
       });
     }
-    
+
     // Update ghosts
-    this.updateGhosts();
-    
+    this.updateGhosts(deltaSeconds, deltaTime);
+
     // Check game over
     if (this.state.pelletsLeft === 0) {
       this.state.gameOver = true;
     }
   }
-  
-  private updateGhosts(): void {
+
+  private updateGhosts(deltaSeconds: number, deltaTime: number): void {
+    const shouldRefreshDirections = this.ghostDecisionTimerMs >= GHOST_DECISION_INTERVAL_MS;
+
     this.ghosts.forEach(ghost => {
       // Update fright timer
       if (ghost.frightTimer > 0) {
-        ghost.frightTimer--;
+        ghost.frightTimer = Math.max(0, ghost.frightTimer - deltaTime);
         if (ghost.frightTimer === 0) {
           ghost.mode = 'chase';
         }
       }
-      
+
       // Simple ghost AI: move randomly
-      if (this.animationFrame % 10 === 0) {
+      if (shouldRefreshDirections) {
         const directions = [
           { dx: 0, dy: -1 },
           { dx: 0, dy: 1 },
           { dx: -1, dy: 0 },
           { dx: 1, dy: 0 },
-        ].filter(d => 
+        ].filter(d =>
           this.isWalkable(
             Math.round(ghost.x + d.dx),
             Math.round(ghost.y + d.dy)
           )
         );
-        
+
         if (directions.length > 0) {
           ghost.direction = directions[Math.floor(Math.random() * directions.length)];
         }
       }
-      
+
       // Move ghost
-      const speed = ghost.mode === 'frightened' ? 0.05 : 0.08;
-      ghost.x += ghost.direction.dx * speed;
-      ghost.y += ghost.direction.dy * speed;
-      
+      const speed = ghost.mode === 'frightened' ? FRIGHTENED_GHOST_SPEED_TILES_PER_SECOND : GHOST_SPEED_TILES_PER_SECOND;
+      ghost.x += ghost.direction.dx * speed * deltaSeconds;
+      ghost.y += ghost.direction.dy * speed * deltaSeconds;
+
       // Check collision with Pac-Man
       const dist = Math.hypot(ghost.x - this.pacman.x, ghost.y - this.pacman.y);
-      if (dist < 0.5) {
+      if (dist < COLLISION_DISTANCE) {
         if (ghost.mode === 'frightened') {
           // Eat ghost
           this.state.score += 200;
           ghost.x = mapData.ghostHouse.x;
           ghost.y = mapData.ghostHouse.y;
           ghost.mode = 'scatter';
+          ghost.frightTimer = 0;
         } else {
           // Lose life
           this.state.lives--;
@@ -344,13 +360,17 @@ export class MsPacmanGame {
         }
       }
     });
+
+    if (shouldRefreshDirections) {
+      this.ghostDecisionTimerMs = 0;
+    }
   }
-  
+
   private resetPositions(): void {
     this.pacman.x = mapData.pacmanStart.x;
     this.pacman.y = mapData.pacmanStart.y;
     this.pacman.direction = { dx: 0, dy: 0 };
-    
+
     mapData.ghostStarts.forEach((g, i) => {
       this.ghosts[i].x = g.x;
       this.ghosts[i].y = g.y;
@@ -358,34 +378,34 @@ export class MsPacmanGame {
       this.ghosts[i].frightTimer = 0;
     });
   }
-  
+
   public render(): void {
     const { ctx } = this;
-    
+
     // Clear canvas
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    
+
     // Draw map
     this.renderMap();
-    
+
     // Draw pellets
     this.renderPellets();
-    
+
     // Draw Pac-Man
     this.renderPacman();
-    
+
     // Draw ghosts
     this.renderGhosts();
   }
-  
+
   private renderMap(): void {
     const { ctx, map } = this;
     const tileSize = this.tileSize;
-    
+
     ctx.strokeStyle = '#2121ff';
     ctx.lineWidth = Math.max(1, tileSize * 0.12);
-    
+
     for (let y = 0; y < map.length; y++) {
       for (let x = 0; x < map[y].length; x++) {
         const tile = map[y][x];
@@ -400,10 +420,10 @@ export class MsPacmanGame {
       }
     }
   }
-  
+
   private renderPellets(): void {
     const { ctx, tileSize } = this;
-    
+
     ctx.fillStyle = '#ffb8ae';
     this.pellets.forEach(pellet => {
       const [x, y] = pellet.split(',').map(Number);
@@ -417,7 +437,7 @@ export class MsPacmanGame {
       );
       ctx.fill();
     });
-    
+
     // Power pellets (pulsing)
     const pulseSize = (Math.sin(this.animationFrame / 10) + 1) * 0.15 + 0.2;
     ctx.fillStyle = '#ffb8ae';
@@ -434,51 +454,51 @@ export class MsPacmanGame {
       ctx.fill();
     });
   }
-  
+
   private renderPacman(): void {
     const { ctx, tileSize, pacman } = this;
-    
+
     const { x: centerX, y: centerY } = this.getEntityCenter(pacman.x, pacman.y);
     const radius = tileSize * 0.4;
-    
+
     // Mouth animation
     const mouthAngle = (Math.sin(this.animationFrame / 5) + 1) * 0.2 + 0.1;
-    
+
     // Direction angle
     let angle = 0;
     if (pacman.direction.dx > 0) angle = 0;
     else if (pacman.direction.dx < 0) angle = Math.PI;
     else if (pacman.direction.dy > 0) angle = Math.PI / 2;
     else if (pacman.direction.dy < 0) angle = -Math.PI / 2;
-    
+
     ctx.fillStyle = '#ffff00';
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, angle + mouthAngle, angle - mouthAngle + Math.PI * 2);
     ctx.lineTo(centerX, centerY);
     ctx.fill();
   }
-  
+
   private renderGhosts(): void {
     const { ctx, tileSize, ghosts } = this;
-    
+
     ghosts.forEach(ghost => {
       const { x: centerX, y: centerY } = this.getEntityCenter(ghost.x, ghost.y);
       const radius = tileSize * 0.4;
-      
+
       // Ghost color
       if (ghost.mode === 'frightened') {
         ctx.fillStyle = ghost.frightTimer % 20 < 10 ? '#2121ff' : '#ffffff';
       } else {
         ctx.fillStyle = ghost.color;
       }
-      
+
       // Draw ghost body (circle)
       ctx.beginPath();
       ctx.arc(centerX, centerY, radius, Math.PI, 0);
       ctx.lineTo(centerX + radius, centerY + radius);
       ctx.lineTo(centerX - radius, centerY + radius);
       ctx.fill();
-      
+
       // Draw eyes
       if (ghost.mode !== 'frightened') {
         ctx.fillStyle = '#fff';
@@ -486,7 +506,7 @@ export class MsPacmanGame {
         ctx.arc(centerX - radius / 3, centerY - radius / 4, radius / 4, 0, Math.PI * 2);
         ctx.arc(centerX + radius / 3, centerY - radius / 4, radius / 4, 0, Math.PI * 2);
         ctx.fill();
-        
+
         ctx.fillStyle = '#000';
         ctx.beginPath();
         ctx.arc(centerX - radius / 3, centerY - radius / 4, radius / 8, 0, Math.PI * 2);
@@ -495,24 +515,27 @@ export class MsPacmanGame {
       }
     });
   }
-  
+
   public getCanvasImageData(): ImageData {
     return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
   }
-  
+
   public pause(): void {
     this.state.paused = true;
   }
-  
+
   public resume(): void {
     this.state.paused = false;
   }
-  
+
   public reset(): void {
     this.state.score = 0;
     this.state.lives = 3;
     this.state.gameOver = false;
     this.state.paused = false;
+    this.animationFrame = 0;
+    this.ghostDecisionTimerMs = 0;
+    this.nextDirection = null;
     this.pellets.clear();
     this.powerPellets.clear();
     this.initializePellets();
