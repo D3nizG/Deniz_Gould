@@ -66,6 +66,13 @@ The current repo includes a committed ONNX model in [`public/models`](./public/m
 - The bottom HUD keeps lives in the lower-left lane aligned to the maze edge, while the lower-right lane is reserved for round fruit history once that gameplay state exists.
 - The AI/manual toggle and restart controls live in the bezel chrome below the game surface and wrap cleanly on smaller screens.
 
+### Game engine
+
+- **Wall rendering**: walls are rendered as one cohesive solid shape — each tile is filled in a single blue, outer convex corners are rounded using background-colour quarter-circle arcs, and the perimeter outline is drawn with two-pass strokes (wide faint halo + narrow opaque line) that follow the rounded contour rather than the raw tile grid.
+- **Ghost house door**: rendered as a distinct pink horizontal bar at the ghost pen entrance.
+- **Pac-Man movement**: Ms. Pac-Man is always corridor-centered. The perpendicular axis is snapped every movement frame, and wall collision uses a forward-tile look-ahead so she glides cleanly to the tile center when hitting a dead end rather than parking off-center. Input is buffered so a direction queued before an intersection fires as soon as it becomes valid.
+- **Tunnel warp**: horizontal tunnel warp works in both directions (left → right and right → left) via modulo wrapping in the forward-tile check.
+
 ### Manual play
 
 1. Switch the bezel to `Manual`.

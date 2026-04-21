@@ -251,29 +251,49 @@ export class MsPacmanGame {
     this.animationFrame += deltaTime / (1000 / 60);
     this.ghostDecisionTimerMs += deltaTime;
 
-    // Update Pac-Man position
-    if (this.nextDirection) {
-      const newX = Math.round(this.pacman.x + this.nextDirection.dx * 0.1);
-      const newY = Math.round(this.pacman.y + this.nextDirection.dy * 0.1);
-
-      if (this.isWalkable(newX, newY)) {
-        this.pacman.direction = this.nextDirection;
-      }
+    // Try to apply buffered direction input each frame
+    if (this.nextDirection && this.tryApplyDirection(this.nextDirection)) {
+      this.nextDirection = null;
     }
 
-    // Move Pac-Man
-    if (this.pacman.direction.dx !== 0 || this.pacman.direction.dy !== 0) {
-      const newX = this.pacman.x + this.pacman.direction.dx * PACMAN_SPEED_TILES_PER_SECOND * deltaSeconds;
-      const newY = this.pacman.y + this.pacman.direction.dy * PACMAN_SPEED_TILES_PER_SECOND * deltaSeconds;
+    // Move Pac-Man — Pac-Man is ALWAYS centered in corridors.
+    // The perpendicular axis is snapped every frame so drift is impossible.
+    // Wall collision: check the tile one step ahead; if blocked, glide to the
+    // current tile center and stop — no oscillation, no off-center parking.
+    const dir = this.pacman.direction;
+    if (dir.dx !== 0 || dir.dy !== 0) {
+      const step = PACMAN_SPEED_TILES_PER_SECOND * deltaSeconds;
 
-      if (this.isWalkable(Math.round(newX), Math.round(newY))) {
-        this.pacman.x = newX;
-        this.pacman.y = newY;
+      // Tile immediately ahead in movement direction (wrap horizontally for tunnels)
+      const forwardX = ((Math.round(this.pacman.x) + dir.dx) % this.mapWidth + this.mapWidth) % this.mapWidth;
+      const forwardY = Math.round(this.pacman.y) + dir.dy;
 
-        // Wrap around tunnels
+      if (this.isWalkable(forwardX, forwardY)) {
+        // Open — move freely
+        this.pacman.x += dir.dx * step;
+        this.pacman.y += dir.dy * step;
+
+        // Tunnel wrapping
         if (this.pacman.x < 0) this.pacman.x = this.mapWidth - 1;
         if (this.pacman.x >= this.mapWidth) this.pacman.x = 0;
+      } else {
+        // Wall ahead — glide to this tile's center and stop there
+        const cx = Math.round(this.pacman.x);
+        const cy = Math.round(this.pacman.y);
+
+        if (dir.dx !== 0) {
+          const rem = cx - this.pacman.x;
+          this.pacman.x = Math.abs(rem) <= step ? cx : this.pacman.x + Math.sign(rem) * step;
+        } else {
+          const rem = cy - this.pacman.y;
+          this.pacman.y = Math.abs(rem) <= step ? cy : this.pacman.y + Math.sign(rem) * step;
+        }
       }
+
+      // Unconditionally snap the perpendicular axis — this is always a no-op
+      // unless floating-point drift has crept in, but it guarantees corridor centering
+      if (dir.dx !== 0) this.pacman.y = Math.round(this.pacman.y);
+      else              this.pacman.x = Math.round(this.pacman.x);
     }
 
     // Check pellet collision
@@ -301,6 +321,57 @@ export class MsPacmanGame {
     if (this.state.pelletsLeft === 0) {
       this.state.gameOver = true;
     }
+  }
+
+  // Returns true if the direction was successfully applied (buffer can be cleared).
+  // Perpendicular turns only apply when Pac-Man is close enough to a tile center on
+  // the axis being crossed, so he always stays aligned inside alleys.
+  private tryApplyDirection(dir: { dx: number; dy: number }): boolean {
+    const ALIGN_THRESHOLD = 0.35;
+    const { pacman } = this;
+    const cur = pacman.direction;
+
+    // Stopped: apply immediately if target tile is open
+    if (cur.dx === 0 && cur.dy === 0) {
+      if (this.isWalkable(Math.round(pacman.x) + dir.dx, Math.round(pacman.y) + dir.dy)) {
+        pacman.direction = dir;
+        return true;
+      }
+      return false;
+    }
+
+    // Same axis (includes U-turns): apply if the target tile is open
+    if ((dir.dx !== 0 && cur.dx !== 0) || (dir.dy !== 0 && cur.dy !== 0)) {
+      if (this.isWalkable(Math.round(pacman.x) + dir.dx, Math.round(pacman.y) + dir.dy)) {
+        pacman.direction = dir;
+        return true;
+      }
+      return false;
+    }
+
+    // Perpendicular turn — only allow when aligned on the crossing axis
+    if (dir.dx !== 0) {
+      // Turning horizontal: Y must be near a tile center
+      const alignedY = Math.round(pacman.y);
+      if (Math.abs(pacman.y - alignedY) <= ALIGN_THRESHOLD &&
+          this.isWalkable(Math.round(pacman.x) + dir.dx, alignedY)) {
+        pacman.y = alignedY;
+        pacman.direction = dir;
+        return true;
+      }
+    } else {
+      // Turning vertical: X must be near a tile center
+      const alignedX = Math.round(pacman.x);
+      if (Math.abs(pacman.x - alignedX) <= ALIGN_THRESHOLD &&
+          this.isWalkable(alignedX, Math.round(pacman.y) + dir.dy)) {
+        pacman.x = alignedX;
+        pacman.direction = dir;
+        return true;
+      }
+    }
+
+    // Can't turn yet — keep buffered so it fires at the next valid tile center
+    return false;
   }
 
   private updateGhosts(deltaSeconds: number, deltaTime: number): void {
@@ -401,21 +472,142 @@ export class MsPacmanGame {
 
   private renderMap(): void {
     const { ctx, map } = this;
-    const tileSize = this.tileSize;
+    const ts = this.tileSize;
 
-    ctx.strokeStyle = '#2121ff';
-    ctx.lineWidth = Math.max(1, tileSize * 0.12);
+    const isWall = (tx: number, ty: number): boolean => {
+      if (ty < 0 || ty >= map.length) return false;
+      const row = map[ty];
+      return !!row && tx >= 0 && tx < row.length && row[tx] === '#';
+    };
 
+    const WALL_COLOR = '#2563eb'; // solid blue fill
+    const BG_COLOR   = '#000000';
+    const cornerR      = Math.max(2, Math.floor(ts * 0.44));
+
+    // ── Pass 1: fill every wall tile solid ──────────────────────────────────
+    ctx.fillStyle = WALL_COLOR;
     for (let y = 0; y < map.length; y++) {
       for (let x = 0; x < map[y].length; x++) {
-        const tile = map[y][x];
-        if (tile === '#' || tile === '-') {
-          ctx.strokeRect(
-            this.toCanvasX(x),
-            this.toCanvasY(y),
-            tileSize,
-            tileSize
-          );
+        if (map[y][x] === '#') {
+          ctx.fillRect(this.toCanvasX(x), this.toCanvasY(y), ts, ts);
+        }
+      }
+    }
+
+    // ── Pass 2: round convex (outer) corners by painting background arcs ───
+    // For each corner of a wall tile where BOTH adjacent edge tiles are non-wall,
+    // we overdraw a quarter-circle in background colour to "cut" the corner.
+    for (let y = 0; y < map.length; y++) {
+      for (let x = 0; x < map[y].length; x++) {
+        if (map[y][x] !== '#') continue;
+
+        const px = this.toCanvasX(x);
+        const py = this.toCanvasY(y);
+        ctx.fillStyle = BG_COLOR;
+
+        // Top-left
+        if (!isWall(x - 1, y) && !isWall(x, y - 1)) {
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.arc(px, py, cornerR, 0, Math.PI / 2);
+          ctx.fill();
+        }
+        // Top-right
+        if (!isWall(x + 1, y) && !isWall(x, y - 1)) {
+          ctx.beginPath();
+          ctx.moveTo(px + ts, py);
+          ctx.arc(px + ts, py, cornerR, Math.PI / 2, Math.PI);
+          ctx.fill();
+        }
+        // Bottom-left
+        if (!isWall(x - 1, y) && !isWall(x, y + 1)) {
+          ctx.beginPath();
+          ctx.moveTo(px, py + ts);
+          ctx.arc(px, py + ts, cornerR, -Math.PI / 2, 0);
+          ctx.fill();
+        }
+        // Bottom-right
+        if (!isWall(x + 1, y) && !isWall(x, y + 1)) {
+          ctx.beginPath();
+          ctx.moveTo(px + ts, py + ts);
+          ctx.arc(px + ts, py + ts, cornerR, Math.PI, -Math.PI / 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // ── Pass 3: outline that follows the rounded contour ────────────────────
+    // Two sub-passes create a soft gradient: a wide faint halo first,
+    // then a narrower opaque line on top.
+    const R = cornerR;
+    const outlinePasses = [
+      { lw: Math.max(2, ts * 0.30), color: 'rgba(26,52,140,0.35)' },
+      { lw: Math.max(1, ts * 0.11), color: 'rgba(26,52,140,0.92)' },
+    ];
+
+    for (const { lw, color } of outlinePasses) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = lw;
+      ctx.lineCap     = 'round';
+
+      for (let y = 0; y < map.length; y++) {
+        for (let x = 0; x < map[y].length; x++) {
+          if (map[y][x] !== '#') continue;
+
+          const px = this.toCanvasX(x);
+          const py = this.toCanvasY(y);
+
+          const topExp   = !isWall(x, y - 1);
+          const botExp   = !isWall(x, y + 1);
+          const leftExp  = !isWall(x - 1, y);
+          const rightExp = !isWall(x + 1, y);
+
+          const tlOut = leftExp && topExp;
+          const trOut = rightExp && topExp;
+          const blOut = leftExp && botExp;
+          const brOut = rightExp && botExp;
+
+          // Straight segments — trimmed back where a rounded corner replaces the end
+          ctx.beginPath();
+          if (topExp) {
+            const x1 = tlOut ? px + R : px;
+            const x2 = trOut ? px + ts - R : px + ts;
+            if (x1 < x2) { ctx.moveTo(x1, py); ctx.lineTo(x2, py); }
+          }
+          if (botExp) {
+            const x1 = blOut ? px + R : px;
+            const x2 = brOut ? px + ts - R : px + ts;
+            if (x1 < x2) { ctx.moveTo(x1, py + ts); ctx.lineTo(x2, py + ts); }
+          }
+          if (leftExp) {
+            const y1 = tlOut ? py + R : py;
+            const y2 = blOut ? py + ts - R : py + ts;
+            if (y1 < y2) { ctx.moveTo(px, y1); ctx.lineTo(px, y2); }
+          }
+          if (rightExp) {
+            const y1 = trOut ? py + R : py;
+            const y2 = brOut ? py + ts - R : py + ts;
+            if (y1 < y2) { ctx.moveTo(px + ts, y1); ctx.lineTo(px + ts, y2); }
+          }
+          ctx.stroke();
+
+          // Arc segments at outer corners — same radius as the fill cut
+          if (tlOut) { ctx.beginPath(); ctx.arc(px,      py,      R, 0,            Math.PI / 2); ctx.stroke(); }
+          if (trOut) { ctx.beginPath(); ctx.arc(px + ts, py,      R, Math.PI / 2,  Math.PI);     ctx.stroke(); }
+          if (blOut) { ctx.beginPath(); ctx.arc(px,      py + ts, R, -Math.PI / 2, 0);           ctx.stroke(); }
+          if (brOut) { ctx.beginPath(); ctx.arc(px + ts, py + ts, R, Math.PI,      3*Math.PI/2); ctx.stroke(); }
+        }
+      }
+    }
+
+    // ── Pass 4: ghost house door — pink horizontal bar ───────────────────────
+    for (let y = 0; y < map.length; y++) {
+      for (let x = 0; x < map[y].length; x++) {
+        if (map[y][x] === '-') {
+          const px = this.toCanvasX(x);
+          const py = this.toCanvasY(y);
+          ctx.fillStyle = '#ffb8ff';
+          ctx.fillRect(px, py + Math.floor(ts * 0.35), ts, Math.ceil(ts * 0.3));
         }
       }
     }
