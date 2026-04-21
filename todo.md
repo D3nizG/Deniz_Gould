@@ -84,3 +84,43 @@
   - The Sennet game is not part of the first deploy and should be treated as a separate future URL.
   - First launch target is a clean MVP, not a full marketing-grade polished launch.
   - Vercel is the hosting platform and Porkbun remains the DNS registrar.
+
+# Ms. Pac-Man AI — Web Integration
+
+Full roadmap and diagnostic findings: [`docs/mspacmanAI-web.md`](docs/mspacmanAI-web.md).
+
+## Done
+
+- **Action interpreter aligned to 9-action ALE-minimal set.** `src/ai/constants.ts`
+  now uses the compact enum; diagonals decode to priority-ordered intent lists
+  via `ACTION_TO_INTENTS`; `MODEL_CONFIG.OUTPUT_ACTIONS = 9`.
+- **Environment integrity.** Tile semantics via `TILE` constants; pellets only
+  seed on `.`/`*`; Pac-Man gets strict `isWalkable`, ghosts keep permissive
+  `isGhostWalkable`; pending-intent buffering with `pendingIntents: Direction[]`
+  replaces the single-slot `nextDirection`.
+- **Diagnostic trace pipeline.** Ring buffer in `src/ai/trace.ts` captures
+  `decision`/`apply`/`event` entries; ORT session returns full Q-value vectors;
+  worker forwards metadata; window globals (`__msPacmanEnableTrace`,
+  `__msPacmanDumpTrace`, `__msPacmanDebugStatus`, etc.) expose capture + dump
+  from the browser console. Auto-enable via `?debug=mspacman`.
+
+## Root cause (not yet fixed)
+
+Trace analysis (`mspacman-ai/traces/mspacman-trace-1776753727910.json`) shows
+the model emits 100% `DOWNRIGHT` with flat Q-values (argmax margin ~0.02 over
+0.76–1.81) while Pac-Man is wedged at tile (26, 29) with only `UP`/`LEFT` legal.
+The checkpoint was trained on Atari ROM via OpenAI Gym / ALE; the browser
+canvas is a stylized reimplementation. Pixel input is out-of-distribution.
+
+## Next (priority order)
+
+1. **Fixture-replay hook.** Feed an ALE-captured 4×84×84 observation stack
+   directly through the worker (bypassing `preprocessFrame`) to confirm the
+   checkpoint is healthy before spending time on parity work.
+2. **Observation parity.** Prefer synthesizing an ALE-like 160×210 frame from
+   game state (tile grid + sprite positions) over rendering a parallel canvas.
+   Match preprocessing too: max-of-last-two-frames, BT.601 luminance,
+   bilinear/area downsample, confirm normalization range.
+3. **Controller robustness fallback (optional).** If N consecutive applies are
+   `buffered`, pick a random legal cardinal from `legalCardinalsNow()` to
+   unwedge — safety net for OOD decisions.

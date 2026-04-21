@@ -15,7 +15,8 @@ interface WorkerResponse {
   success?: boolean;
   action?: number;
   actionName?: string;
-  qValues?: number[];
+  qValues?: number[];         // full output vector when model ran; undefined on random fallback
+  fallback?: boolean;         // true when action came from random fallback (no model)
   error?: string;
   status?: {
     loaded: boolean;
@@ -123,33 +124,39 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         
         let action: number;
         let actionName: string;
-        
+        let qValues: number[] | undefined;
+        let fallback = false;
+
         if (!status.loaded || frameStack.length < MAX_FRAMES) {
           // Use random action as fallback
           action = getRandomAction(legalActions);
-          actionName = ACTION_NAMES[action as keyof typeof ACTION_NAMES] + ' (random)';
+          actionName = (ACTION_NAMES[action] ?? `UNKNOWN(${action})`) + ' (random)';
+          fallback = true;
         } else {
           // Stack frames for model input: [1, 4, 84, 84]
           const stackedFrames = new Float32Array(
             1 * MAX_FRAMES * FRAME_CONFIG.HEIGHT * FRAME_CONFIG.WIDTH
           );
-          
+
           for (let i = 0; i < MAX_FRAMES; i++) {
             stackedFrames.set(
               frameStack[i],
               i * FRAME_CONFIG.HEIGHT * FRAME_CONFIG.WIDTH
             );
           }
-          
-          // Run inference
-          action = await infer(stackedFrames);
-          actionName = ACTION_NAMES[action as keyof typeof ACTION_NAMES];
+
+          const result = await infer(stackedFrames);
+          action = result.action;
+          actionName = ACTION_NAMES[action] ?? `UNKNOWN(${action})`;
+          qValues = Array.from(result.qValues);
         }
-        
+
         const response: WorkerResponse = {
           type: 'infer',
           action,
           actionName,
+          qValues,
+          fallback,
         };
         self.postMessage(response);
         break;

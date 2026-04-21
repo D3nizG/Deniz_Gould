@@ -4,7 +4,6 @@ import { startTransition, useEffect, useRef, useState } from 'react';
 import { MsPacmanGame, MS_PACMAN_WORLD_SIZE, type GameState } from './MsPacmanGame';
 import { TIMING } from '../ai/constants';
 
-const SESSION_SCORE_STORAGE_KEY = 'ms-pacman-session-score';
 const HIGH_SCORE_STORAGE_KEY = 'ms-pacman-high-score';
 
 interface MsPacmanCanvasProps {
@@ -37,14 +36,11 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
   const lastDecisionTime = useRef<number>(0);
   const lastCanvasSizeRef = useRef({ width: 0, height: 0 });
   const lastPublishedStateRef = useRef<GameState | null>(null);
-  const lastRoundScoreRef = useRef(0);
-  const sessionScoreRef = useRef(0);
   const highScoreRef = useRef(0);
   const onGameStateChangeRef = useRef(onGameStateChange);
 
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [isManualSurfaceFocused, setIsManualSurfaceFocused] = useState(false);
-  const [sessionScore, setSessionScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
 
   useEffect(() => {
@@ -52,27 +48,17 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
   }, [onGameStateChange]);
 
   useEffect(() => {
-    sessionScoreRef.current = sessionScore;
-  }, [sessionScore]);
-
-  useEffect(() => {
     highScoreRef.current = highScore;
   }, [highScore]);
 
   useEffect(() => {
     try {
-      const savedSessionScore = window.sessionStorage.getItem(SESSION_SCORE_STORAGE_KEY);
       const savedHighScore = window.localStorage.getItem(HIGH_SCORE_STORAGE_KEY);
-
-      if (savedSessionScore) {
-        setSessionScore(Number.parseInt(savedSessionScore, 10) || 0);
-      }
-
       if (savedHighScore) {
         setHighScore(Number.parseInt(savedHighScore, 10) || 0);
       }
     } catch (error) {
-      console.warn('[MsPacmanCanvas] Unable to read saved scores:', error);
+      console.warn('[MsPacmanCanvas] Unable to read saved high score:', error);
     }
   }, []);
   
@@ -83,8 +69,8 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
     
     // Handle worker messages
     worker.onmessage = (e) => {
-      const { type, success, action, error } = e.data;
-      
+      const { type, success, action, actionName, qValues, fallback, error } = e.data;
+
       switch (type) {
         case 'init':
           if (success) {
@@ -93,13 +79,13 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
             console.error('[AI] Model initialization failed:', error);
           }
           break;
-          
+
         case 'infer':
           if (action !== undefined && gameRef.current) {
-            gameRef.current.handleAIAction(action);
+            gameRef.current.handleAIAction(action, { qValues, actionName, fallback });
           }
           break;
-          
+
         case 'error':
           console.error('[AI] Worker error:', error);
           break;
@@ -239,41 +225,15 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
     };
   }, [mode]);
 
+  // Update high score whenever the current game score beats it
   useEffect(() => {
-    if (!gameState) {
+    if (!gameState || gameState.score <= highScoreRef.current) {
       return;
     }
-
-    if (gameState.score < lastRoundScoreRef.current) {
-      lastRoundScoreRef.current = gameState.score;
-      return;
-    }
-
-    const scoreDelta = gameState.score - lastRoundScoreRef.current;
-
-    if (scoreDelta <= 0) {
-      return;
-    }
-
-    lastRoundScoreRef.current = gameState.score;
-
-    const nextSessionScore = sessionScoreRef.current + scoreDelta;
-    const nextHighScore = Math.max(highScoreRef.current, nextSessionScore);
-
-    sessionScoreRef.current = nextSessionScore;
-    highScoreRef.current = nextHighScore;
-
-    setSessionScore(nextSessionScore);
-    setHighScore(nextHighScore);
-
+    highScoreRef.current = gameState.score;
+    setHighScore(gameState.score);
     try {
-      window.sessionStorage.setItem(SESSION_SCORE_STORAGE_KEY, String(nextSessionScore));
-    } catch (error) {
-      console.warn('[MsPacmanCanvas] Unable to save session score:', error);
-    }
-
-    try {
-      window.localStorage.setItem(HIGH_SCORE_STORAGE_KEY, String(nextHighScore));
+      window.localStorage.setItem(HIGH_SCORE_STORAGE_KEY, String(gameState.score));
     } catch (error) {
       console.warn('[MsPacmanCanvas] Unable to save high score:', error);
     }
@@ -299,7 +259,7 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
   };
 
   const collectedFruit: string[] = [];
-  const sessionScoreDisplay = sessionScore.toString().padStart(6, '0');
+  const currentScoreDisplay = (gameState?.score ?? 0).toString().padStart(6, '0');
   const highScoreDisplay = highScore.toString().padStart(6, '0');
   
   return (
@@ -310,7 +270,7 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
             <div className="animate-pulse text-[11px] uppercase tracking-[0.45em] text-red-400">
               1UP
             </div>
-            <div className="mt-1 text-xl leading-none sm:text-2xl">{sessionScoreDisplay}</div>
+            <div className="mt-1 text-xl leading-none sm:text-2xl">{currentScoreDisplay}</div>
           </div>
         </div>
 

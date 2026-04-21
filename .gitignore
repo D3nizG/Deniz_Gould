@@ -48,3 +48,7 @@ venv/
 env/
 ENV/
 .venv311/
+
+# Local docs and AI trace output
+/docs/
+/mspacman-ai/traces/

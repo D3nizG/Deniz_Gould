@@ -2,7 +2,14 @@
 // Handles game state, rendering, and physics
 
 import mapData from '../../assets/msmap1.json';
-import { ACTION_TO_DIRECTION } from '../ai/constants';
+import { ACTION_NAMES, ACTION_TO_INTENTS } from '../ai/constants';
+import {
+  pushTrace,
+  isTraceEnabled,
+  type CardinalName,
+  type Direction,
+  type PacSnapshot,
+} from '../ai/trace';
 
 export interface GameState {
   score: number;
@@ -40,6 +47,22 @@ export const MS_PACMAN_WORLD_SIZE = {
   height: mapData.height,
 } as const;
 
+// Tile semantics (from msmap1.json `walls`):
+//   '#' wall          — non-walkable for all
+//   '.' pellet lane   — walkable, carries a pellet
+//   '*' power pellet  — walkable, carries a power pellet
+//   ' ' open corridor — walkable, no pellet (tunnel rows, ghost-house exterior)
+//   '-' ghost door    — walkable by ghosts only; Pac-Man cannot cross
+//   'x' void / ghost-house interior — walkable by ghosts only; off-limits to Pac-Man
+const TILE = {
+  WALL:     '#',
+  PELLET:   '.',
+  POWER:    '*',
+  CORRIDOR: ' ',
+  DOOR:     '-',
+  VOID:     'x',
+} as const;
+
 const PACMAN_SPEED_TILES_PER_SECOND = 4.15;
 const GHOST_SPEED_TILES_PER_SECOND = 3.4;
 const FRIGHTENED_GHOST_SPEED_TILES_PER_SECOND = 2.35;
@@ -70,8 +93,16 @@ export class MsPacmanGame {
   private animationFrame: number = 0;
   private ghostDecisionTimerMs: number = 0;
 
-  // Input
-  private nextDirection: { dx: number; dy: number } | null = null;
+  // Input — priority-ordered list of cardinal intents. The first intent that
+  // becomes legal this frame commits and clears the list; otherwise the list
+  // persists so pre-turn intents fire at the next valid turn opportunity.
+  private pendingIntents: Direction[] = [];
+
+  // Diagnostics state (only read when tracing is enabled)
+  private wasBlockedLastFrame: boolean = false;
+  private lastMoveAtMs: number = 0;
+  private stuckReported: boolean = false;
+  private lastMovePos: { x: number; y: number } = { x: 0, y: 0 };
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -157,13 +188,15 @@ export class MsPacmanGame {
   }
 
   private initializePellets(): void {
-    // Add pellets to all walkable tiles
+    // Seed pellets strictly from explicit tile glyphs. Corridors (' ') and void
+    // ('x') are NOT pellet-bearing — seeding them inflated pelletsLeft and
+    // placed pellets in non-navigable / tunnel space.
     for (let y = 0; y < this.map.length; y++) {
       for (let x = 0; x < this.map[y].length; x++) {
         const tile = this.map[y][x];
-        if (tile === '.' || tile === ' ') {
+        if (tile === TILE.PELLET) {
           this.pellets.add(`${x},${y}`);
-        } else if (tile === '*') {
+        } else if (tile === TILE.POWER) {
           this.powerPellets.add(`${x},${y}`);
         }
       }
@@ -205,41 +238,113 @@ export class MsPacmanGame {
       case 'ArrowUp':
       case 'w':
       case 'W':
-        this.nextDirection = { dx: 0, dy: -1 };
+        this.pendingIntents = [{ dx: 0, dy: -1 }];
         break;
       case 'ArrowDown':
       case 's':
       case 'S':
-        this.nextDirection = { dx: 0, dy: 1 };
+        this.pendingIntents = [{ dx: 0, dy: 1 }];
         break;
       case 'ArrowLeft':
       case 'a':
       case 'A':
-        this.nextDirection = { dx: -1, dy: 0 };
+        this.pendingIntents = [{ dx: -1, dy: 0 }];
         break;
       case 'ArrowRight':
       case 'd':
       case 'D':
-        this.nextDirection = { dx: 1, dy: 0 };
+        this.pendingIntents = [{ dx: 1, dy: 0 }];
         break;
     }
   }
 
-  public handleAIAction(action: number): void {
+  public handleAIAction(
+    action: number,
+    meta?: { qValues?: number[]; actionName?: string; fallback?: boolean },
+  ): void {
     if (this.state.mode !== 'ai') return;
 
-    const direction = ACTION_TO_DIRECTION[action as keyof typeof ACTION_TO_DIRECTION];
-    if (direction) {
-      this.nextDirection = direction;
+    const intents = ACTION_TO_INTENTS[action];
+    if (!intents) {
+      if (isTraceEnabled()) {
+        pushTrace({
+          kind: 'decision',
+          t: performance.now(),
+          frame: Math.floor(this.animationFrame),
+          pac: this.snapshotPac(),
+          action,
+          actionName: meta?.actionName ?? `UNKNOWN(${action})`,
+          qValues: meta?.qValues,
+          intents: [],
+          pendingBefore: this.pendingIntents.slice(),
+          legalNow: this.legalCardinalsNow(),
+        });
+      }
+      return;
     }
+
+    if (isTraceEnabled()) {
+      pushTrace({
+        kind: 'decision',
+        t: performance.now(),
+        frame: Math.floor(this.animationFrame),
+        pac: this.snapshotPac(),
+        action,
+        actionName: meta?.actionName ?? ACTION_NAMES[action] ?? `UNKNOWN(${action})`,
+        qValues: meta?.qValues,
+        intents: intents.map(d => ({ ...d })),
+        pendingBefore: this.pendingIntents.slice(),
+        legalNow: this.legalCardinalsNow(),
+      });
+    }
+
+    this.pendingIntents = intents.map(d => ({ ...d }));
   }
 
+  private snapshotPac(): PacSnapshot {
+    const tileX = Math.round(this.pacman.x);
+    const tileY = Math.round(this.pacman.y);
+    return {
+      x: this.pacman.x,
+      y: this.pacman.y,
+      tileX,
+      tileY,
+      offX: this.pacman.x - tileX,
+      offY: this.pacman.y - tileY,
+      dir: { ...this.pacman.direction },
+    };
+  }
+
+  private legalCardinalsNow(): CardinalName[] {
+    const tx = Math.round(this.pacman.x);
+    const ty = Math.round(this.pacman.y);
+    const wrap = (x: number) => ((x % this.mapWidth) + this.mapWidth) % this.mapWidth;
+    const legal: CardinalName[] = [];
+    if (this.isWalkable(tx, ty - 1)) legal.push('UP');
+    if (this.isWalkable(tx, ty + 1)) legal.push('DOWN');
+    if (this.isWalkable(wrap(tx - 1), ty)) legal.push('LEFT');
+    if (this.isWalkable(wrap(tx + 1), ty)) legal.push('RIGHT');
+    return legal;
+  }
+
+  // Pac-Man walkability: pellet lanes, power pellets, and open corridors only.
+  // Walls, the ghost door, and void/ghost-house interior are all off-limits —
+  // so Pac-Man cannot enter the ghost house and cannot wrap through 'x' edges.
   private isWalkable(x: number, y: number): boolean {
     if (y < 0 || y >= this.map.length) return false;
     if (x < 0 || x >= this.map[y].length) return false;
 
     const tile = this.map[y][x];
-    return tile !== '#' && tile !== '-';
+    return tile === TILE.PELLET || tile === TILE.POWER || tile === TILE.CORRIDOR;
+  }
+
+  // Ghost walkability: everything except solid walls. Ghosts may traverse the
+  // door and the ghost-house interior (void) where they spawn.
+  private isGhostWalkable(x: number, y: number): boolean {
+    if (y < 0 || y >= this.map.length) return false;
+    if (x < 0 || x >= this.map[y].length) return false;
+
+    return this.map[y][x] !== TILE.WALL;
   }
 
   public update(_deltaTime: number): void {
@@ -251,33 +356,87 @@ export class MsPacmanGame {
     this.animationFrame += deltaTime / (1000 / 60);
     this.ghostDecisionTimerMs += deltaTime;
 
-    // Try to apply buffered direction input each frame
-    if (this.nextDirection && this.tryApplyDirection(this.nextDirection)) {
-      this.nextDirection = null;
+    const tracing = isTraceEnabled();
+    const now = performance.now();
+    const frame = Math.floor(this.animationFrame);
+    const dirBefore = { ...this.pacman.direction };
+
+    // ── Intent resolution ──────────────────────────────────────────────────
+    // Try each pending intent in priority order. Commit on the first that
+    // succeeds; if none do, keep the list so the intent fires at the next
+    // valid turn opportunity (fallback to current direction is automatic —
+    // pacman.direction is unchanged and the movement block below continues).
+    if (this.pendingIntents.length > 0) {
+      const tried = this.pendingIntents.map(d => ({ ...d }));
+      let committedIdx: number | null = null;
+      for (let i = 0; i < this.pendingIntents.length; i++) {
+        if (this.tryApplyDirection(this.pendingIntents[i])) {
+          committedIdx = i;
+          this.pendingIntents = [];
+          break;
+        }
+      }
+
+      if (tracing) {
+        const outcome: 'committed' | 'no-change' | 'fell-back' | 'buffered' =
+          committedIdx === null
+            ? 'buffered'
+            : committedIdx > 0
+              ? 'fell-back'
+              : (dirBefore.dx === this.pacman.direction.dx &&
+                 dirBefore.dy === this.pacman.direction.dy)
+                ? 'no-change'
+                : 'committed';
+        pushTrace({
+          kind: 'apply',
+          t: now,
+          frame,
+          pac: this.snapshotPac(),
+          tried,
+          committedIdx,
+          outcome,
+          resultDir: { ...this.pacman.direction },
+          pendingAfter: this.pendingIntents.slice(),
+        });
+      }
     }
 
-    // Move Pac-Man — Pac-Man is ALWAYS centered in corridors.
-    // The perpendicular axis is snapped every frame so drift is impossible.
-    // Wall collision: check the tile one step ahead; if blocked, glide to the
-    // current tile center and stop — no oscillation, no off-center parking.
+    if (
+      tracing &&
+      (dirBefore.dx !== this.pacman.direction.dx || dirBefore.dy !== this.pacman.direction.dy)
+    ) {
+      pushTrace({
+        kind: 'event',
+        t: now,
+        frame,
+        pac: this.snapshotPac(),
+        event: 'direction_changed',
+        detail: { from: dirBefore, to: { ...this.pacman.direction } },
+      });
+    }
+
+    // ── Movement ───────────────────────────────────────────────────────────
+    // Pac-Man is ALWAYS centered in corridors. The perpendicular axis is
+    // snapped every frame so drift is impossible. Wall collision: check the
+    // tile one step ahead; if blocked, glide to the current tile center and
+    // stop — no oscillation, no off-center parking.
     const dir = this.pacman.direction;
+    let blockedThisFrame = false;
+
     if (dir.dx !== 0 || dir.dy !== 0) {
       const step = PACMAN_SPEED_TILES_PER_SECOND * deltaSeconds;
 
-      // Tile immediately ahead in movement direction (wrap horizontally for tunnels)
       const forwardX = ((Math.round(this.pacman.x) + dir.dx) % this.mapWidth + this.mapWidth) % this.mapWidth;
       const forwardY = Math.round(this.pacman.y) + dir.dy;
 
       if (this.isWalkable(forwardX, forwardY)) {
-        // Open — move freely
         this.pacman.x += dir.dx * step;
         this.pacman.y += dir.dy * step;
 
-        // Tunnel wrapping
         if (this.pacman.x < 0) this.pacman.x = this.mapWidth - 1;
         if (this.pacman.x >= this.mapWidth) this.pacman.x = 0;
       } else {
-        // Wall ahead — glide to this tile's center and stop there
+        blockedThisFrame = true;
         const cx = Math.round(this.pacman.x);
         const cy = Math.round(this.pacman.y);
 
@@ -290,34 +449,74 @@ export class MsPacmanGame {
         }
       }
 
-      // Unconditionally snap the perpendicular axis — this is always a no-op
-      // unless floating-point drift has crept in, but it guarantees corridor centering
       if (dir.dx !== 0) this.pacman.y = Math.round(this.pacman.y);
       else              this.pacman.x = Math.round(this.pacman.x);
     }
 
-    // Check pellet collision
+    // Edge-triggered hit_wall (only on transition from open → blocked)
+    if (tracing && blockedThisFrame && !this.wasBlockedLastFrame) {
+      pushTrace({
+        kind: 'event',
+        t: now,
+        frame,
+        pac: this.snapshotPac(),
+        event: 'hit_wall',
+        detail: { dir: { ...dir } },
+      });
+    }
+    this.wasBlockedLastFrame = blockedThisFrame;
+
+    // Stuck detection: position effectively unchanged for > 1 s while a
+    // direction is set. Emitted once per stuck episode.
+    if (tracing) {
+      const moved = Math.hypot(this.pacman.x - this.lastMovePos.x, this.pacman.y - this.lastMovePos.y) > 0.01;
+      if (moved) {
+        this.lastMovePos = { x: this.pacman.x, y: this.pacman.y };
+        this.lastMoveAtMs = now;
+        this.stuckReported = false;
+      } else if (
+        !this.stuckReported &&
+        this.lastMoveAtMs > 0 &&
+        now - this.lastMoveAtMs > 1000 &&
+        (this.pacman.direction.dx !== 0 || this.pacman.direction.dy !== 0)
+      ) {
+        pushTrace({
+          kind: 'event',
+          t: now,
+          frame,
+          pac: this.snapshotPac(),
+          event: 'stuck',
+          detail: { idleMs: Math.round(now - this.lastMoveAtMs) },
+        });
+        this.stuckReported = true;
+      }
+    }
+
+    // Pellet / power pellet collision
     const pacmanTile = `${Math.round(this.pacman.x)},${Math.round(this.pacman.y)}`;
     if (this.pellets.has(pacmanTile)) {
       this.pellets.delete(pacmanTile);
       this.state.score += 10;
       this.state.pelletsLeft--;
+      if (tracing) {
+        pushTrace({ kind: 'event', t: now, frame, pac: this.snapshotPac(), event: 'pellet' });
+      }
     }
     if (this.powerPellets.has(pacmanTile)) {
       this.powerPellets.delete(pacmanTile);
       this.state.score += 50;
       this.state.pelletsLeft--;
-      // Frighten ghosts
       this.ghosts.forEach(g => {
         g.mode = 'frightened';
         g.frightTimer = FRIGHTENED_DURATION_MS;
       });
+      if (tracing) {
+        pushTrace({ kind: 'event', t: now, frame, pac: this.snapshotPac(), event: 'power' });
+      }
     }
 
-    // Update ghosts
     this.updateGhosts(deltaSeconds, deltaTime);
 
-    // Check game over
     if (this.state.pelletsLeft === 0) {
       this.state.gameOver = true;
     }
@@ -386,29 +585,54 @@ export class MsPacmanGame {
         }
       }
 
-      // Simple ghost AI: move randomly
-      if (shouldRefreshDirections) {
-        const directions = [
-          { dx: 0, dy: -1 },
-          { dx: 0, dy: 1 },
-          { dx: -1, dy: 0 },
-          { dx: 1, dy: 0 },
-        ].filter(d =>
-          this.isWalkable(
-            Math.round(ghost.x + d.dx),
-            Math.round(ghost.y + d.dy)
-          )
-        );
+      // Ghost AI: pick a new direction at tile centers
+      const speed = ghost.mode === 'frightened' ? FRIGHTENED_GHOST_SPEED_TILES_PER_SECOND : GHOST_SPEED_TILES_PER_SECOND;
+      const step = speed * deltaSeconds;
 
-        if (directions.length > 0) {
-          ghost.direction = directions[Math.floor(Math.random() * directions.length)];
+      // Forward-tile check (ghosts can cross the door and be inside the ghost house)
+      const fwdX = ((Math.round(ghost.x) + ghost.direction.dx) % this.mapWidth + this.mapWidth) % this.mapWidth;
+      const fwdY = Math.round(ghost.y) + ghost.direction.dy;
+
+      if (this.isGhostWalkable(fwdX, fwdY)) {
+        ghost.x += ghost.direction.dx * step;
+        ghost.y += ghost.direction.dy * step;
+      } else {
+        // Glide to current tile center, then pick a new direction
+        const cx = Math.round(ghost.x);
+        const cy = Math.round(ghost.y);
+        if (ghost.direction.dx !== 0) {
+          const rem = cx - ghost.x;
+          ghost.x = Math.abs(rem) <= step ? cx : ghost.x + Math.sign(rem) * step;
+        } else {
+          const rem = cy - ghost.y;
+          ghost.y = Math.abs(rem) <= step ? cy : ghost.y + Math.sign(rem) * step;
         }
       }
 
-      // Move ghost
-      const speed = ghost.mode === 'frightened' ? FRIGHTENED_GHOST_SPEED_TILES_PER_SECOND : GHOST_SPEED_TILES_PER_SECOND;
-      ghost.x += ghost.direction.dx * speed * deltaSeconds;
-      ghost.y += ghost.direction.dy * speed * deltaSeconds;
+      // At a tile center: choose a new direction (random, excluding reverse)
+      if (shouldRefreshDirections || !this.isGhostWalkable(fwdX, fwdY)) {
+        const atCenterX = Math.abs(ghost.x - Math.round(ghost.x)) < 0.1;
+        const atCenterY = Math.abs(ghost.y - Math.round(ghost.y)) < 0.1;
+        if (atCenterX && atCenterY) {
+          const reverse = { dx: -ghost.direction.dx, dy: -ghost.direction.dy };
+          const options = [
+            { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+            { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
+          ].filter(d => {
+            if (d.dx === reverse.dx && d.dy === reverse.dy) return false;
+            const tx = ((Math.round(ghost.x) + d.dx) % this.mapWidth + this.mapWidth) % this.mapWidth;
+            const ty = Math.round(ghost.y) + d.dy;
+            return this.isGhostWalkable(tx, ty);
+          });
+          if (options.length > 0) {
+            ghost.direction = options[Math.floor(Math.random() * options.length)];
+          }
+        }
+      }
+
+      // Snap perpendicular axis — ghosts stay centered in corridors
+      if (ghost.direction.dx !== 0) ghost.y = Math.round(ghost.y);
+      else                          ghost.x = Math.round(ghost.x);
 
       // Check collision with Pac-Man
       const dist = Math.hypot(ghost.x - this.pacman.x, ghost.y - this.pacman.y);
@@ -420,9 +644,29 @@ export class MsPacmanGame {
           ghost.y = mapData.ghostHouse.y;
           ghost.mode = 'scatter';
           ghost.frightTimer = 0;
+          if (isTraceEnabled()) {
+            pushTrace({
+              kind: 'event',
+              t: performance.now(),
+              frame: Math.floor(this.animationFrame),
+              pac: this.snapshotPac(),
+              event: 'ghost_eaten',
+              detail: { color: ghost.color },
+            });
+          }
         } else {
           // Lose life
           this.state.lives--;
+          if (isTraceEnabled()) {
+            pushTrace({
+              kind: 'event',
+              t: performance.now(),
+              frame: Math.floor(this.animationFrame),
+              pac: this.snapshotPac(),
+              event: 'lost_life',
+              detail: { color: ghost.color, livesLeft: this.state.lives },
+            });
+          }
           if (this.state.lives <= 0) {
             this.state.gameOver = true;
           } else {
@@ -727,7 +971,7 @@ export class MsPacmanGame {
     this.state.paused = false;
     this.animationFrame = 0;
     this.ghostDecisionTimerMs = 0;
-    this.nextDirection = null;
+    this.pendingIntents = [];
     this.pellets.clear();
     this.powerPellets.clear();
     this.initializePellets();

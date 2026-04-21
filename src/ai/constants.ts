@@ -1,31 +1,52 @@
 // AI Constants for Ms. Pac-Man
-// Maps ALE (Arcade Learning Environment) actions to game directions
+// 9-action compact minimal-action set (ALE MsPacman): NOOP, UP, RIGHT, LEFT,
+// DOWN, UPRIGHT, UPLEFT, DOWNRIGHT, DOWNLEFT at indices 0..8.
 
 export const ACTIONS = {
-  NOOP: 0,
-  UP: 2,
-  RIGHT: 3,
-  LEFT: 4,
-  DOWN: 5,
+  NOOP:      0,
+  UP:        1,
+  RIGHT:     2,
+  LEFT:      3,
+  DOWN:      4,
+  UPRIGHT:   5,
+  UPLEFT:    6,
+  DOWNRIGHT: 7,
+  DOWNLEFT:  8,
 } as const;
 
 export type Action = typeof ACTIONS[keyof typeof ACTIONS];
+export type Direction = { dx: number; dy: number };
 
-export const ACTION_TO_DIRECTION = {
-  [ACTIONS.NOOP]: null,
-  [ACTIONS.UP]: { dx: 0, dy: -1 },
-  [ACTIONS.DOWN]: { dx: 0, dy: 1 },
-  [ACTIONS.LEFT]: { dx: -1, dy: 0 },
-  [ACTIONS.RIGHT]: { dx: 1, dy: 0 },
-} as const;
+const UP:    Direction = { dx:  0, dy: -1 };
+const DOWN:  Direction = { dx:  0, dy:  1 };
+const LEFT:  Direction = { dx: -1, dy:  0 };
+const RIGHT: Direction = { dx:  1, dy:  0 };
 
-export const ACTION_NAMES = {
-  [ACTIONS.NOOP]: 'NOOP',
-  [ACTIONS.UP]: 'UP',
-  [ACTIONS.DOWN]: 'DOWN',
-  [ACTIONS.LEFT]: 'LEFT',
-  [ACTIONS.RIGHT]: 'RIGHT',
-} as const;
+// Priority-ordered intent list per action. Diagonals are NOT movement vectors;
+// they are "try axis A first, fall back to axis B if A is illegal right now."
+export const ACTION_TO_INTENTS: Record<number, readonly Direction[]> = {
+  [ACTIONS.NOOP]:      [],
+  [ACTIONS.UP]:        [UP],
+  [ACTIONS.RIGHT]:     [RIGHT],
+  [ACTIONS.LEFT]:      [LEFT],
+  [ACTIONS.DOWN]:      [DOWN],
+  [ACTIONS.UPRIGHT]:   [UP, RIGHT],
+  [ACTIONS.UPLEFT]:    [UP, LEFT],
+  [ACTIONS.DOWNRIGHT]: [DOWN, RIGHT],
+  [ACTIONS.DOWNLEFT]:  [DOWN, LEFT],
+};
+
+export const ACTION_NAMES: Record<number, string> = {
+  [ACTIONS.NOOP]:      'NOOP',
+  [ACTIONS.UP]:        'UP',
+  [ACTIONS.RIGHT]:     'RIGHT',
+  [ACTIONS.LEFT]:      'LEFT',
+  [ACTIONS.DOWN]:      'DOWN',
+  [ACTIONS.UPRIGHT]:   'UPRIGHT',
+  [ACTIONS.UPLEFT]:    'UPLEFT',
+  [ACTIONS.DOWNRIGHT]: 'DOWNRIGHT',
+  [ACTIONS.DOWNLEFT]:  'DOWNLEFT',
+};
 
 // Frame processing constants
 export const FRAME_CONFIG = {
@@ -47,7 +68,7 @@ export const TIMING = {
 // Model configuration
 export const MODEL_CONFIG = {
   INPUT_SHAPE: [1, FRAME_CONFIG.STACK_SIZE, FRAME_CONFIG.HEIGHT, FRAME_CONFIG.WIDTH],
-  OUTPUT_ACTIONS: 5,        // Number of possible actions
+  OUTPUT_ACTIONS: 9,
   MODEL_PATH: '/models/latest.onnx',
   METADATA_PATH: '/models/metadata.json',
 } as const;
@@ -64,4 +85,3 @@ export interface ModelMetadata {
     w: number;
   };
 }
-

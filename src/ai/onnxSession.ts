@@ -79,18 +79,22 @@ export async function initSession(): Promise<{ success: boolean; error?: string 
   }
 }
 
+export interface InferResult {
+  action: number;
+  qValues: Float32Array;   // full output vector (9 values for MsPacman minimal set)
+}
+
 /**
  * Run inference on a stacked frame input
  * @param frameStack - Float32Array of shape [1, 4, 84, 84] with values in [0, 1]
- * @returns Action index (0-4) with highest Q-value
+ * @returns argmax action and the raw Q-values for downstream diagnostics
  */
-export async function infer(frameStack: Float32Array): Promise<number> {
+export async function infer(frameStack: Float32Array): Promise<InferResult> {
   if (!session) {
     throw new Error('Session not initialized. Call initSession() first.');
   }
 
   try {
-    // Create input tensor
     const ort = await loadOrt();
     const inputTensor = new ort.Tensor(
       'float32',
@@ -98,18 +102,15 @@ export async function infer(frameStack: Float32Array): Promise<number> {
       MODEL_CONFIG.INPUT_SHAPE as [number, number, number, number]
     );
 
-    // Run inference
     const feeds: Record<string, ort.Tensor> = {};
     feeds[session.inputNames[0]] = inputTensor;
-    
+
     const results = await session.run(feeds);
     const outputTensor = results[session.outputNames[0]];
-    
-    // Get Q-values and find argmax
+
     const qValues = outputTensor.data as Float32Array;
     let maxIdx = 0;
     let maxValue = qValues[0];
-    
     for (let i = 1; i < qValues.length; i++) {
       if (qValues[i] > maxValue) {
         maxValue = qValues[i];
@@ -117,7 +118,8 @@ export async function infer(frameStack: Float32Array): Promise<number> {
       }
     }
 
-    return maxIdx;
+    // Copy out of the ORT-owned buffer so we can hand it across the worker boundary safely.
+    return { action: maxIdx, qValues: new Float32Array(qValues) };
   } catch (error) {
     console.error('[ONNX] Inference error:', error);
     throw error;
