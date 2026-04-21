@@ -2,7 +2,9 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
+      "@/*": [
+        "./*"
+      ]
       // "@components/*": ["./components/*"],
       // "@lib/*": ["./lib/*"],
       // "@styles/*": ["./styles/*"],
@@ -40,10 +42,10 @@
   },
   "include": [
     "next-env.d.ts",
-    "/*.ts",
-    "/.tsx",
-    "**/.js",
+    "**/*.d.ts",
+    "**/*.ts",
     "**/*.jsx",
+    "**/*.tsx",
     ".next/types/**/*.ts"
   ],
   "exclude": [

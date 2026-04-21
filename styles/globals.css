@@ -4,6 +4,8 @@
 
 @layer base {
   :root {
+    --font-sans: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", "SF Mono", Consolas, monospace;
     /* Light theme colors */
     --bg: 249 250 251; /* gray-50 */
     --fg: 17 24 39; /* gray-900 */
@@ -25,12 +27,26 @@ html {
   scroll-behavior: smooth;
 }
 
+body {
+  min-height: 100vh;
+  text-rendering: optimizeLegibility;
+}
+
 ::selection {
   background: rgb(var(--accent-primary));
   color: rgb(var(--bg));
 }
 
-/* Ensure smooth transitions for theme changes */
-* {
+/* Hide scrollbar while preserving scroll functionality */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Ensure smooth transitions for theme changes — scoped to UI elements only */
+a,
+button,
+[role="button"],
+nav a,
+nav button,
+.theme-transition {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }

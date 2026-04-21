@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title>DG Monogram</title>
+  <defs>
+    <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117" />
+      <stop offset="100%" stop-color="#152238" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#64ffda" />
+      <stop offset="100%" stop-color="#ffb86b" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)" />
+  <path
+    d="M29 32h27c21 0 34 11 34 32s-13 32-34 32H29V32Zm24 49c12 0 19-5 19-17s-7-17-19-17h-8v34h8Z"
+    fill="url(#accent)"
+  />
+  <path
+    d="M101 43c-5-4-10-6-17-6-15 0-26 11-26 27 0 17 11 27 26 27 7 0 12-2 17-5V72H84V58h31v35c-8 7-19 11-32 11-24 0-41-16-41-40 0-23 17-40 42-40 12 0 22 3 30 10l-13 9Z"
+    fill="#f9fafb"
+    opacity="0.92"
+  />
+</svg>
