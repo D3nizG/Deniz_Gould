@@ -26,7 +26,7 @@ export default function AboutSection() {
     <section
       ref={ref}
       id="about"
-      className="max-w-5xl mx-auto px-4 py-24 min-h-screen grid md:grid-cols-2 gap-12 lg:gap-16 items-center scroll-mt-24"
+      className="section-wash section-wash-about max-w-5xl mx-auto px-4 py-24 min-h-screen grid md:grid-cols-2 gap-12 lg:gap-16 items-center scroll-mt-24"
     >
       {/* Portrait column */}
       <div className="relative justify-self-center">

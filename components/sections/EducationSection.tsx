@@ -101,7 +101,7 @@ export default function EducationSection() {
     <section
       ref={ref}
       id="education"
-      className="max-w-3xl mx-auto px-4 py-16 min-h-screen scroll-mt-24"
+      className="section-wash section-wash-education max-w-3xl mx-auto px-4 py-16 min-h-screen scroll-mt-24"
     >
       <motion.h1
         className="text-3xl font-bold mb-12 text-center"

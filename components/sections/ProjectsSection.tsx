@@ -297,7 +297,7 @@ export default function ProjectsSection() {
     <section
       ref={sectionRef}
       id="projects"
-      className="py-16 min-h-screen scroll-mt-24 flex flex-col items-center justify-center overflow-hidden"
+      className="section-wash section-wash-projects py-16 min-h-screen scroll-mt-24 flex flex-col items-center justify-center overflow-hidden"
     >
       {/* Heading */}
       <motion.h1

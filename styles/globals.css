@@ -7,10 +7,10 @@
     --font-sans: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     --font-mono: "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", "SF Mono", Consolas, monospace;
     /* Light theme colors */
-    --bg: 249 250 251; /* gray-50 */
-    --fg: 17 24 39; /* gray-900 */
-    --accent-primary: 20 184 166; /* teal-500 */
-    --accent-secondary: 251 146 60; /* orange-400 */
+    --bg: 235 239 243; /* soft cool gray */
+    --fg: 34 45 58; /* softened slate */
+    --accent-primary: 0 137 123; /* readable teal */
+    --accent-secondary: 202 104 25; /* readable warm orange */
   }
 
   .dark {
@@ -40,6 +40,53 @@ body {
 /* Hide scrollbar while preserving scroll functionality */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.section-wash {
+  position: relative;
+  isolation: isolate;
+}
+
+.section-wash::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.section-wash-home::before {
+  background:
+    radial-gradient(circle at 78% 24%, rgb(var(--accent-primary) / 0.13), transparent 34%),
+    linear-gradient(135deg, rgb(var(--bg)), rgb(var(--accent-secondary) / 0.08) 52%, rgb(var(--bg)));
+}
+
+.section-wash-about::before {
+  background:
+    radial-gradient(circle at 18% 42%, rgb(var(--accent-primary) / 0.14), transparent 31%),
+    linear-gradient(160deg, rgb(var(--bg)), rgb(var(--accent-primary) / 0.07) 48%, rgb(var(--bg)));
+}
+
+.section-wash-projects::before {
+  background:
+    radial-gradient(circle at 86% 42%, rgb(var(--accent-secondary) / 0.14), transparent 30%),
+    linear-gradient(25deg, rgb(var(--bg)), rgb(var(--accent-secondary) / 0.07) 45%, rgb(var(--bg)));
+}
+
+.section-wash-skills::before {
+  background:
+    radial-gradient(circle at 50% 18%, rgb(var(--accent-primary) / 0.12), transparent 30%),
+    linear-gradient(120deg, rgb(var(--bg)), rgb(var(--accent-primary) / 0.06), rgb(var(--accent-secondary) / 0.06), rgb(var(--bg)));
+}
+
+.section-wash-education::before {
+  background:
+    radial-gradient(circle at 22% 28%, rgb(var(--accent-secondary) / 0.12), transparent 32%),
+    linear-gradient(155deg, rgb(var(--bg)), rgb(var(--accent-primary) / 0.05) 40%, rgb(var(--accent-secondary) / 0.07));
+}
 
 /* Ensure smooth transitions for theme changes — scoped to UI elements only */
 a,

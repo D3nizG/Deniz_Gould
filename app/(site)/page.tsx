@@ -48,7 +48,7 @@ export default function HomePage() {
 
       <section
         id="home"
-        className="min-h-screen scroll-mt-16 flex items-center"
+        className="section-wash section-wash-home min-h-screen scroll-mt-16 flex items-center"
       >
         <div className="max-w-6xl mx-auto w-full px-4 py-16 grid md:grid-cols-2 gap-12 items-center">
 

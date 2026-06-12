@@ -28,6 +28,14 @@ function LevelDots({ level, primary }: { level: number; primary: boolean }) {
 }
 
 interface SkillItem { name: string; level: number; years: string; }
+type SkillCardData = {
+  item: SkillItem;
+  cat: {
+    name: string;
+    icon: string;
+    color: string;
+  };
+};
 
 function SkillCard({ item, categoryName, categoryIcon, color, onPause, onResume }: {
   item: SkillItem;
@@ -51,7 +59,7 @@ function SkillCard({ item, categoryName, categoryIcon, color, onPause, onResume 
           ? '0 8px 28px rgba(100,255,218,0.12)'
           : '0 8px 28px rgba(255,184,107,0.12)',
       }}
-      className={`shrink-0 w-60 h-44 flex flex-col gap-2.5 p-4 rounded-xl border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent-primary/60 ${
+      className={`shrink-0 w-60 h-40 select-none flex flex-col gap-2.5 p-4 rounded-xl border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent-primary/60 ${
         primary
           ? 'bg-accent-primary/5 border-accent-primary/20 hover:border-accent-primary/40'
           : 'bg-accent-secondary/5 border-accent-secondary/20 hover:border-accent-secondary/40'
@@ -83,6 +91,14 @@ const AUTO_SCROLL_PX_PER_SECOND = 38;
 const MOMENTUM_FRICTION = 0.94;
 const MIN_MOMENTUM = 8;
 
+function chunkCards(cards: SkillCardData[], size: number) {
+  const chunks: SkillCardData[][] = [];
+  for (let i = 0; i < cards.length; i += size) {
+    chunks.push(cards.slice(i, i + size));
+  }
+  return chunks;
+}
+
 export default function SkillsSection() {
   const loopRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -101,7 +117,7 @@ export default function SkillsSection() {
   const allCards = data.skills.categories.flatMap((cat) =>
     cat.items.map((item) => ({ item, cat }))
   );
-  const loopCards = useMemo(() => allCards, [allCards]);
+  const cardColumns = useMemo(() => chunkCards(allCards, 2), [allCards]);
 
   const wrapOffset = useCallback((value: number) => {
     if (!loopWidth) return value;
@@ -145,6 +161,7 @@ export default function SkillsSection() {
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
+    event.preventDefault();
     isDragging.current = true;
     momentumVelocity.current = 0;
     dragVelocity.current = 0;
@@ -181,20 +198,24 @@ export default function SkillsSection() {
   const pause = useCallback(() => setIsHoverPaused(true), []);
   const resume = useCallback(() => setIsHoverPaused(false), []);
 
-  const renderCards = (prefix: string) => loopCards.map(({ item, cat }) => (
-    <SkillCard
-      key={`${prefix}-${cat.name}-${item.name}`}
-      item={item}
-      categoryName={cat.name}
-      categoryIcon={cat.icon}
-      color={cat.color}
-      onPause={pause}
-      onResume={resume}
-    />
+  const renderColumns = (prefix: string) => cardColumns.map((column, columnIndex) => (
+    <div key={`${prefix}-${columnIndex}`} className="flex shrink-0 flex-col gap-4">
+      {column.map(({ item, cat }) => (
+        <SkillCard
+          key={`${prefix}-${cat.name}-${item.name}`}
+          item={item}
+          categoryName={cat.name}
+          categoryIcon={cat.icon}
+          color={cat.color}
+          onPause={pause}
+          onResume={resume}
+        />
+      ))}
+    </div>
   ));
 
   return (
-    <section id="skills" className="scroll-mt-16 overflow-hidden py-20">
+    <section id="skills" className="section-wash section-wash-skills scroll-mt-16 overflow-hidden py-20">
       <div className="max-w-5xl mx-auto px-4 w-full mb-8">
         <motion.h1
           className="text-3xl font-bold mb-1 text-center"
@@ -219,8 +240,8 @@ export default function SkillsSection() {
 
       <div
         ref={trackRef}
-        className="w-full cursor-grab overflow-hidden active:cursor-grabbing"
-        style={{ touchAction: 'pan-y' }}
+        className="w-full cursor-grab select-none overflow-hidden active:cursor-grabbing"
+        style={{ touchAction: 'pan-y', userSelect: 'none' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -228,14 +249,14 @@ export default function SkillsSection() {
       >
         <motion.div
           style={{ x }}
-          className="flex w-max gap-4 will-change-transform"
+          className="flex w-max select-none gap-4 will-change-transform"
           aria-label="Auto-scrolling skills carousel"
         >
           <div ref={loopRef} className="flex gap-4 px-2">
-            {renderCards('a')}
+            {renderColumns('a')}
           </div>
           <div className="flex gap-4 px-2">
-            {renderCards('b')}
+            {renderColumns('b')}
           </div>
         </motion.div>
       </div>
