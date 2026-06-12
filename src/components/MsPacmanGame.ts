@@ -10,6 +10,7 @@ import {
   type Direction,
   type PacSnapshot,
 } from '../ai/trace';
+import { type SynthesisInput } from '../ai/synthesizeFrame';
 
 export interface GameState {
   score: number;
@@ -596,6 +597,10 @@ export class MsPacmanGame {
       if (this.isGhostWalkable(fwdX, fwdY)) {
         ghost.x += ghost.direction.dx * step;
         ghost.y += ghost.direction.dy * step;
+
+        // Tunnel wrapping (same as Pac-Man)
+        if (ghost.x < 0) ghost.x = this.mapWidth - 1;
+        if (ghost.x >= this.mapWidth) ghost.x = 0;
       } else {
         // Glide to current tile center, then pick a new direction
         const cx = Math.round(ghost.x);
@@ -724,75 +729,65 @@ export class MsPacmanGame {
       return !!row && tx >= 0 && tx < row.length && row[tx] === '#';
     };
 
-    const WALL_COLOR = '#2563eb'; // solid blue fill
-    const BG_COLOR   = '#000000';
-    const cornerR      = Math.max(2, Math.floor(ts * 0.44));
+    const WALL_COLOR = '#2563eb';
+    // Each wall tile is inset on its exposed sides so a 1-tile-wide wall
+    // renders as a pipe that is ~half the tile width.  Adjacent wall tiles
+    // extend flush to each other so the pipe is continuous with no gaps.
+    const INSET = ts * 0.25; // 25 % inset per exposed side → pipe ≈ 50 % tile
+    const PIPE_R = Math.max(1, Math.floor(INSET * 0.85)); // inner corner radius
 
-    // ── Pass 1: fill every wall tile solid ──────────────────────────────────
+    // ── Pass 1: pipe fill ────────────────────────────────────────────────────
     ctx.fillStyle = WALL_COLOR;
-    for (let y = 0; y < map.length; y++) {
-      for (let x = 0; x < map[y].length; x++) {
-        if (map[y][x] === '#') {
-          ctx.fillRect(this.toCanvasX(x), this.toCanvasY(y), ts, ts);
-        }
-      }
-    }
-
-    // ── Pass 2: round convex (outer) corners by painting background arcs ───
-    // For each corner of a wall tile where BOTH adjacent edge tiles are non-wall,
-    // we overdraw a quarter-circle in background colour to "cut" the corner.
     for (let y = 0; y < map.length; y++) {
       for (let x = 0; x < map[y].length; x++) {
         if (map[y][x] !== '#') continue;
 
         const px = this.toCanvasX(x);
         const py = this.toCanvasY(y);
-        ctx.fillStyle = BG_COLOR;
 
-        // Top-left
-        if (!isWall(x - 1, y) && !isWall(x, y - 1)) {
-          ctx.beginPath();
-          ctx.moveTo(px, py);
-          ctx.arc(px, py, cornerR, 0, Math.PI / 2);
-          ctx.fill();
-        }
-        // Top-right
-        if (!isWall(x + 1, y) && !isWall(x, y - 1)) {
-          ctx.beginPath();
-          ctx.moveTo(px + ts, py);
-          ctx.arc(px + ts, py, cornerR, Math.PI / 2, Math.PI);
-          ctx.fill();
-        }
-        // Bottom-left
-        if (!isWall(x - 1, y) && !isWall(x, y + 1)) {
-          ctx.beginPath();
-          ctx.moveTo(px, py + ts);
-          ctx.arc(px, py + ts, cornerR, -Math.PI / 2, 0);
-          ctx.fill();
-        }
-        // Bottom-right
-        if (!isWall(x + 1, y) && !isWall(x, y + 1)) {
-          ctx.beginPath();
-          ctx.moveTo(px + ts, py + ts);
-          ctx.arc(px + ts, py + ts, cornerR, Math.PI, -Math.PI / 2);
-          ctx.fill();
-        }
+        const topExp   = !isWall(x, y - 1);
+        const botExp   = !isWall(x, y + 1);
+        const leftExp  = !isWall(x - 1, y);
+        const rightExp = !isWall(x + 1, y);
+
+        // Inset each exposed edge; flush on wall-to-wall edges
+        const x0 = px + (leftExp  ? INSET : 0);
+        const y0 = py + (topExp   ? INSET : 0);
+        const x1 = px + ts - (rightExp ? INSET : 0);
+        const y1 = py + ts - (botExp   ? INSET : 0);
+
+        const tlOut = leftExp && topExp;
+        const trOut = rightExp && topExp;
+        const blOut = leftExp && botExp;
+        const brOut = rightExp && botExp;
+
+        // Build a path with rounded inner corners at exposed outer corners
+        ctx.beginPath();
+        ctx.moveTo(x0 + (tlOut ? PIPE_R : 0), y0);
+        ctx.lineTo(x1 - (trOut ? PIPE_R : 0), y0);
+        if (trOut) ctx.arcTo(x1, y0, x1, y0 + PIPE_R, PIPE_R);
+        ctx.lineTo(x1, y1 - (brOut ? PIPE_R : 0));
+        if (brOut) ctx.arcTo(x1, y1, x1 - PIPE_R, y1, PIPE_R);
+        ctx.lineTo(x0 + (blOut ? PIPE_R : 0), y1);
+        if (blOut) ctx.arcTo(x0, y1, x0, y1 - PIPE_R, PIPE_R);
+        ctx.lineTo(x0, y0 + (tlOut ? PIPE_R : 0));
+        if (tlOut) ctx.arcTo(x0, y0, x0 + PIPE_R, y0, PIPE_R);
+        ctx.closePath();
+        ctx.fill();
       }
     }
 
-    // ── Pass 3: outline that follows the rounded contour ────────────────────
-    // Two sub-passes create a soft gradient: a wide faint halo first,
-    // then a narrower opaque line on top.
-    const R = cornerR;
+    // ── Pass 2: outline — two strokes for a subtle gradient glow ────────────
     const outlinePasses = [
-      { lw: Math.max(2, ts * 0.30), color: 'rgba(26,52,140,0.35)' },
-      { lw: Math.max(1, ts * 0.11), color: 'rgba(26,52,140,0.92)' },
+      { lw: Math.max(1, ts * 0.15), color: 'rgba(26,52,140,0.35)' },
+      { lw: Math.max(1, ts * 0.06), color: 'rgba(26,52,140,0.92)' },
     ];
 
     for (const { lw, color } of outlinePasses) {
       ctx.strokeStyle = color;
       ctx.lineWidth   = lw;
       ctx.lineCap     = 'round';
+      ctx.lineJoin    = 'round';
 
       for (let y = 0; y < map.length; y++) {
         for (let x = 0; x < map[y].length; x++) {
@@ -806,40 +801,28 @@ export class MsPacmanGame {
           const leftExp  = !isWall(x - 1, y);
           const rightExp = !isWall(x + 1, y);
 
+          const x0 = px + (leftExp  ? INSET : 0);
+          const y0 = py + (topExp   ? INSET : 0);
+          const x1 = px + ts - (rightExp ? INSET : 0);
+          const y1 = py + ts - (botExp   ? INSET : 0);
+
           const tlOut = leftExp && topExp;
           const trOut = rightExp && topExp;
           const blOut = leftExp && botExp;
           const brOut = rightExp && botExp;
 
-          // Straight segments — trimmed back where a rounded corner replaces the end
           ctx.beginPath();
-          if (topExp) {
-            const x1 = tlOut ? px + R : px;
-            const x2 = trOut ? px + ts - R : px + ts;
-            if (x1 < x2) { ctx.moveTo(x1, py); ctx.lineTo(x2, py); }
-          }
-          if (botExp) {
-            const x1 = blOut ? px + R : px;
-            const x2 = brOut ? px + ts - R : px + ts;
-            if (x1 < x2) { ctx.moveTo(x1, py + ts); ctx.lineTo(x2, py + ts); }
-          }
-          if (leftExp) {
-            const y1 = tlOut ? py + R : py;
-            const y2 = blOut ? py + ts - R : py + ts;
-            if (y1 < y2) { ctx.moveTo(px, y1); ctx.lineTo(px, y2); }
-          }
-          if (rightExp) {
-            const y1 = trOut ? py + R : py;
-            const y2 = brOut ? py + ts - R : py + ts;
-            if (y1 < y2) { ctx.moveTo(px + ts, y1); ctx.lineTo(px + ts, y2); }
-          }
+          ctx.moveTo(x0 + (tlOut ? PIPE_R : 0), y0);
+          ctx.lineTo(x1 - (trOut ? PIPE_R : 0), y0);
+          if (trOut) ctx.arcTo(x1, y0, x1, y0 + PIPE_R, PIPE_R);
+          ctx.lineTo(x1, y1 - (brOut ? PIPE_R : 0));
+          if (brOut) ctx.arcTo(x1, y1, x1 - PIPE_R, y1, PIPE_R);
+          ctx.lineTo(x0 + (blOut ? PIPE_R : 0), y1);
+          if (blOut) ctx.arcTo(x0, y1, x0, y1 - PIPE_R, PIPE_R);
+          ctx.lineTo(x0, y0 + (tlOut ? PIPE_R : 0));
+          if (tlOut) ctx.arcTo(x0, y0, x0 + PIPE_R, y0, PIPE_R);
+          ctx.closePath();
           ctx.stroke();
-
-          // Arc segments at outer corners — same radius as the fill cut
-          if (tlOut) { ctx.beginPath(); ctx.arc(px,      py,      R, 0,            Math.PI / 2); ctx.stroke(); }
-          if (trOut) { ctx.beginPath(); ctx.arc(px + ts, py,      R, Math.PI / 2,  Math.PI);     ctx.stroke(); }
-          if (blOut) { ctx.beginPath(); ctx.arc(px,      py + ts, R, -Math.PI / 2, 0);           ctx.stroke(); }
-          if (brOut) { ctx.beginPath(); ctx.arc(px + ts, py + ts, R, Math.PI,      3*Math.PI/2); ctx.stroke(); }
         }
       }
     }
@@ -954,6 +937,30 @@ export class MsPacmanGame {
 
   public getCanvasImageData(): ImageData {
     return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  public getSynthesisInput(): SynthesisInput {
+    const raw = (mapData as unknown as { aleWallColor?: number[] }).aleWallColor;
+    const aleWallColor = raw?.length === 3 ? (raw as [number, number, number]) : undefined;
+    return {
+      tiles: this.map,
+      mapWidth: this.mapWidth,
+      mapHeight: this.mapHeight,
+      pacman: {
+        x: this.pacman.x,
+        y: this.pacman.y,
+        direction: this.pacman.direction,
+      },
+      ghosts: this.ghosts.map(g => ({
+        x: g.x,
+        y: g.y,
+        color: g.color,
+        mode: g.mode,
+      })),
+      pellets: this.pellets,
+      powerPellets: this.powerPellets,
+      wallColor: aleWallColor,
+    };
   }
 
   public pause(): void {

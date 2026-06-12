@@ -1,8 +1,9 @@
 'use client';
 
-import { startTransition, useEffect, useRef, useState } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { MsPacmanGame, MS_PACMAN_WORLD_SIZE, type GameState } from './MsPacmanGame';
 import { TIMING } from '../ai/constants';
+import { synthesizeALEFrame, ALE_FRAME_WIDTH, ALE_FRAME_HEIGHT } from '../ai/synthesizeFrame';
 
 const HIGH_SCORE_STORAGE_KEY = 'ms-pacman-high-score';
 
@@ -29,9 +30,15 @@ function areGameStatesEqual(previous: GameState | null, next: GameState): boolea
 
 export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const debugCanvasRef = useRef<HTMLCanvasElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<MsPacmanGame | null>(null);
   const workerRef = useRef<Worker | null>(null);
+
+  const isDebugMode = useMemo(
+    () => typeof window !== 'undefined' && window.location.search.includes('debug=mspacman'),
+    [],
+  );
   const animationRef = useRef<number | null>(null);
   const lastDecisionTime = useRef<number>(0);
   const lastCanvasSizeRef = useRef({ width: 0, height: 0 });
@@ -94,8 +101,58 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
     
     // Initialize model
     worker.postMessage({ type: 'init' });
-    
+
+    // Dev console hook: feed a pre-captured ALE fixture directly to the model
+    // to validate the checkpoint. Usage: __msPacmanReplayFixture('/fixtures/obs_000.bin')
+    (window as unknown as Record<string, unknown>).__msPacmanReplayFixture = async (url: string) => {
+      const res = await fetch(url);
+      const buf = await res.arrayBuffer();
+      const fixtureData = new Float32Array(buf);
+      worker.postMessage({ type: 'replayFixture', fixtureData });
+      console.log(`[AI] Fixture replay dispatched: ${fixtureData.length} floats`);
+    };
+
+    // Dev console hook: test whether the model responds differently to different inputs.
+    // Sends all-zeros, all-ones, and random frames, then logs Q-values for each.
+    // If Q-values are near-identical for all three, the model is degenerate (bad ONNX export).
+    // Usage: __msPacmanTestModelSensitivity()
+    (window as unknown as Record<string, unknown>).__msPacmanTestModelSensitivity = () => {
+      const SIZE = 4 * 84 * 84;
+      const cases: Array<{ label: string; data: Float32Array }> = [
+        { label: 'all-zeros', data: new Float32Array(SIZE).fill(0) },
+        { label: 'all-ones',  data: new Float32Array(SIZE).fill(1) },
+        { label: 'random',    data: Float32Array.from({ length: SIZE }, () => Math.random()) },
+      ];
+      const originalHandler = worker.onmessage;
+      let caseIdx = 0;
+      worker.onmessage = (e) => {
+        if (e.data.type === 'infer' && caseIdx < cases.length) {
+          const q = (e.data.qValues as number[]).map((v: number) => v.toFixed(4));
+          const sorted = [...(e.data.qValues as number[])].sort((a, b) => b - a);
+          const margin = (sorted[0] - sorted[1]).toFixed(4);
+          console.log(`[sensitivity] ${cases[caseIdx - 1]?.label ?? '?'} → action=${e.data.actionName} margin=${margin} q=[${q}]`);
+          if (caseIdx >= cases.length) {
+            worker.onmessage = originalHandler;
+          }
+        } else {
+          originalHandler?.call(worker, e);
+        }
+        if (caseIdx < cases.length) {
+          worker.postMessage({ type: 'replayFixture', fixtureData: cases[caseIdx].data });
+          console.log(`[sensitivity] sending: ${cases[caseIdx].label}`);
+          caseIdx++;
+        }
+      };
+      // Kick off first case
+      worker.postMessage({ type: 'replayFixture', fixtureData: cases[caseIdx].data });
+      console.log(`[sensitivity] sending: ${cases[caseIdx].label}`);
+      caseIdx++;
+    };
+
     return () => {
+      const w = window as unknown as Record<string, unknown>;
+      delete w.__msPacmanReplayFixture;
+      delete w.__msPacmanTestModelSensitivity;
       worker.terminate();
     };
   }, []);
@@ -204,11 +261,26 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
           lastDecisionTime.current = currentTime;
           
           if (workerRef.current && !state.gameOver && !state.paused) {
-            const imageData = gameRef.current.getCanvasImageData();
-            workerRef.current.postMessage({
-              type: 'infer',
-              imageData,
-            }, [imageData.data.buffer]);
+            const synthInput = gameRef.current.getSynthesisInput();
+            const rawFrame = synthesizeALEFrame(synthInput);
+
+            // Debug canvas: paint the synthesized frame so we can see what the model sees
+            if (isDebugMode && debugCanvasRef.current) {
+              const dc = debugCanvasRef.current;
+              const dctx = dc.getContext('2d');
+              if (dctx) {
+                const id = new ImageData(ALE_FRAME_WIDTH, ALE_FRAME_HEIGHT);
+                for (let i = 0; i < ALE_FRAME_WIDTH * ALE_FRAME_HEIGHT; i++) {
+                  id.data[i * 4]     = rawFrame[i * 3];
+                  id.data[i * 4 + 1] = rawFrame[i * 3 + 1];
+                  id.data[i * 4 + 2] = rawFrame[i * 3 + 2];
+                  id.data[i * 4 + 3] = 255;
+                }
+                dctx.putImageData(id, 0, 0);
+              }
+            }
+
+            workerRef.current.postMessage({ type: 'infer', rawFrame }, [rawFrame.buffer]);
           }
         }
       }
@@ -312,6 +384,17 @@ export default function MsPacmanCanvas({ mode, onGameStateChange }: MsPacmanCanv
           className="block h-full w-full"
           style={{ imageRendering: 'pixelated' }}
         />
+
+        {isDebugMode && (
+          <canvas
+            ref={debugCanvasRef}
+            width={ALE_FRAME_WIDTH}
+            height={ALE_FRAME_HEIGHT}
+            className="absolute bottom-2 right-2 opacity-90"
+            style={{ width: 80, height: 105, imageRendering: 'pixelated', border: '1px solid rgba(255,255,255,0.3)' }}
+            title="ALE synthesis (what the model sees)"
+          />
+        )}
 
         {gameState?.gameOver && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm">
