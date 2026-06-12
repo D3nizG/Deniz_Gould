@@ -1,6 +1,6 @@
 # Deniz Gould Portfolio
 
-Next.js portfolio site for `d3nizg.dev`, including an interactive Ms. Pac-Man experience with browser-side AI inference.
+Next.js portfolio site for `d3nizg.dev`.
 
 ## Stack
 
@@ -9,7 +9,6 @@ Next.js portfolio site for `d3nizg.dev`, including an interactive Ms. Pac-Man ex
 - Tailwind CSS
 - Framer Motion
 - D3
-- ONNX Runtime Web
 
 ## Local Development
 
@@ -52,67 +51,10 @@ DNS values can change by provider setup, so use the exact values shown in the Ve
 - Verify project copy, metrics, and social links
 - Decide whether to keep your phone number public
 - Decide whether analytics should be added before launch
-- Add the future Sennet game URL later as a separate external destination, ideally on its own subdomain
+- Add future game or AI demos only when they are ready for production.
 
-## Ms. Pac-Man AI
+## Experimental Work
 
-The current repo includes a committed ONNX model in [`public/models`](./public/models), so the interactive AI/game experience is deployable as-is.
+Unreleased Ms. Pac-Man AI work is preserved on the `feature/mspacman-ai-canvas` branch and is intentionally not exposed from production `main`.
 
-### Game UI behavior
-
-- The playable board now scales from the actual Ms. Pac-Man map aspect ratio instead of a forced square slot.
-- Canvas sizing is driven by a resize-observed DOM surface, so the board stays centered as the container changes size.
-- The top HUD now uses a retro arcade-style layout: a blinking `1UP` with the session score on the left, and `High Score` centered above the board.
-- The bottom HUD keeps lives in the lower-left lane aligned to the maze edge, while the lower-right lane is reserved for round fruit history once that gameplay state exists.
-- The AI/manual toggle and restart controls live in the bezel chrome below the game surface and wrap cleanly on smaller screens.
-
-### Game engine
-
-- **Wall rendering**: walls are rendered as one cohesive solid shape — each tile is filled in a single blue, outer convex corners are rounded using background-colour quarter-circle arcs, and the perimeter outline is drawn with two-pass strokes (wide faint halo + narrow opaque line) that follow the rounded contour rather than the raw tile grid.
-- **Ghost house door**: rendered as a distinct pink horizontal bar at the ghost pen entrance.
-- **Pac-Man movement**: Ms. Pac-Man is always corridor-centered. The perpendicular axis is snapped every movement frame, and wall collision uses a forward-tile look-ahead so she glides cleanly to the tile center when hitting a dead end rather than parking off-center. Input is buffered so a direction queued before an intersection fires as soon as it becomes valid.
-- **Tunnel warp**: horizontal tunnel warp works in both directions (left → right and right → left) via modulo wrapping in the forward-tile check.
-
-### Manual play
-
-1. Switch the bezel to `Manual`.
-2. Click the game surface, or tab to it, to focus keyboard controls.
-3. Use `Arrow Keys` or `WASD` to move.
-
-Manual input is intentionally scoped to the focused game surface instead of the whole window so the page remains usable around the game.
-
-### Run the diagnostics locally
-
-```bash
-npm run dev
-```
-
-Then visit:
-
-- `http://localhost:3000/`
-- `http://localhost:3000/ai/diagnostics`
-
-### Rebuild the model artifact
-
-If you want to refresh the browser model from a new training checkpoint:
-
-```bash
-python -m pip install -r mspacman-ai/web-integration/requirements.txt
-npm run ai:setup
-```
-
-To convert a different checkpoint:
-
-```bash
-npm run ai:convert -- --ckpt path/to/your_model.zip
-```
-
-### Production diagnostics toggle
-
-Diagnostics stay hidden in production unless you explicitly enable them:
-
-```bash
-NEXT_PUBLIC_ENABLE_AI_DIAGNOSTICS=true
-```
-
-Use [`.env.example`](./.env.example) as the starter template for local env configuration.
+Use [`.env.example`](./.env.example) as the starter template for local environment configuration.

@@ -297,7 +297,7 @@ export default function ProjectsSection() {
     <section
       ref={sectionRef}
       id="projects"
-      className="py-16 min-h-screen scroll-mt-24 flex flex-col items-center justify-center"
+      className="py-16 min-h-screen scroll-mt-24 flex flex-col items-center justify-center overflow-hidden"
     >
       {/* Heading */}
       <motion.h1
@@ -317,7 +317,7 @@ export default function ProjectsSection() {
       </motion.p>
 
       {/* Stage */}
-      <div className="relative w-full flex items-center justify-center">
+      <div className="relative w-full flex items-center justify-center overflow-hidden">
         {/* Left arrow */}
         <button onClick={() => navigate(-1)}
           className="absolute left-4 md:left-8 z-30 flex items-center justify-center w-10 h-10 rounded-full border border-fg/20 text-fg/60 hover:text-accent-primary hover:border-accent-primary/40 bg-bg/80 backdrop-blur-sm transition-colors"

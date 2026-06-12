@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, useAnimationFrame, useMotionValue } from 'framer-motion';
 import data from '@/public/resume.json';
 import { fadeSlideUp } from '@/lib/motion.client';
 
@@ -29,28 +29,34 @@ function LevelDots({ level, primary }: { level: number; primary: boolean }) {
 
 interface SkillItem { name: string; level: number; years: string; }
 
-function SkillCard({ item, categoryName, categoryIcon, color }: {
+function SkillCard({ item, categoryName, categoryIcon, color, onPause, onResume }: {
   item: SkillItem;
   categoryName: string;
   categoryIcon: string;
   color: string;
+  onPause: () => void;
+  onResume: () => void;
 }) {
   const primary = isPrimary(color);
   return (
     <motion.div
+      tabIndex={0}
+      onPointerEnter={onPause}
+      onPointerLeave={onResume}
+      onFocus={onPause}
+      onBlur={onResume}
       whileHover={{
         y: -5,
         boxShadow: primary
           ? '0 8px 28px rgba(100,255,218,0.12)'
           : '0 8px 28px rgba(255,184,107,0.12)',
       }}
-      className={`shrink-0 w-60 h-44 flex flex-col gap-2.5 p-4 rounded-xl border transition-colors ${
+      className={`shrink-0 w-60 h-44 flex flex-col gap-2.5 p-4 rounded-xl border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent-primary/60 ${
         primary
           ? 'bg-accent-primary/5 border-accent-primary/20 hover:border-accent-primary/40'
           : 'bg-accent-secondary/5 border-accent-secondary/20 hover:border-accent-secondary/40'
       }`}
     >
-      {/* Category badge */}
       <div className={`flex items-center gap-1.5 text-xs font-mono w-fit px-2 py-0.5 rounded-full whitespace-nowrap ${
         primary
           ? 'bg-accent-primary/15 text-accent-primary'
@@ -60,13 +66,10 @@ function SkillCard({ item, categoryName, categoryIcon, color }: {
         <span>{categoryName}</span>
       </div>
 
-      {/* Skill name */}
       <h3 className="font-mono font-bold text-sm leading-snug">{item.name}</h3>
 
-      {/* Level dots */}
       <LevelDots level={item.level} primary={primary} />
 
-      {/* Years */}
       <span className={`text-xs font-mono mt-auto ${
         primary ? 'text-accent-primary/70' : 'text-accent-secondary/70'
       }`}>
@@ -76,32 +79,47 @@ function SkillCard({ item, categoryName, categoryIcon, color }: {
   );
 }
 
+const AUTO_SCROLL_PX_PER_SECOND = 38;
+const MOMENTUM_FRICTION = 0.94;
+const MIN_MOMENTUM = 8;
+
 export default function SkillsSection() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rowRef = useRef<HTMLDivElement>(null);
-  const [translateAmount, setTranslateAmount] = useState(0);
+  const loopRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const x = useMotionValue(0);
+  const [loopWidth, setLoopWidth] = useState(0);
+  const [isHoverPaused, setIsHoverPaused] = useState(false);
+
+  const dragStartX = useRef(0);
+  const dragStartOffset = useRef(0);
+  const lastPointerX = useRef(0);
+  const lastPointerT = useRef(0);
+  const dragVelocity = useRef(0);
+  const momentumVelocity = useRef(0);
+  const isDragging = useRef(false);
 
   const allCards = data.skills.categories.flatMap((cat) =>
     cat.items.map((item) => ({ item, cat }))
   );
-  const half = Math.ceil(allCards.length / 2);
-  const row1 = allCards.slice(0, half);
-  const row2 = allCards.slice(half);
+  const loopCards = useMemo(() => allCards, [allCards]);
 
-  // Measure with ResizeObserver — more reliable than setTimeout
+  const wrapOffset = useCallback((value: number) => {
+    if (!loopWidth) return value;
+    let next = value;
+    while (next <= -loopWidth) next += loopWidth;
+    while (next > 0) next -= loopWidth;
+    return next;
+  }, [loopWidth]);
+
   useEffect(() => {
-    if (!rowRef.current) return;
+    const node = loopRef.current;
+    if (!node) return;
 
-    const measure = () => {
-      if (!rowRef.current) return;
-      const overflow = Math.max(0, rowRef.current.offsetWidth - window.innerWidth);
-      setTranslateAmount(overflow);
-    };
-
+    const measure = () => setLoopWidth(node.scrollWidth);
     measure();
 
     const ro = new ResizeObserver(measure);
-    ro.observe(rowRef.current);
+    ro.observe(node);
     window.addEventListener('resize', measure);
     return () => {
       ro.disconnect();
@@ -109,88 +127,117 @@ export default function SkillsSection() {
     };
   }, []);
 
-  // 12% buffer zones at start and end so horizontal scroll eases in/out
-  // instead of snapping abruptly between vertical and horizontal
-  const buffer = translateAmount > 0 ? Math.round(translateAmount * 0.12) : 0;
-  const totalScrollable = translateAmount + buffer * 2;
-  const startPct = totalScrollable > 0 ? buffer / totalScrollable : 0;
-  const endPct = totalScrollable > 0 ? 1 - startPct : 1;
-  const sectionHeight = translateAmount > 0 ? `calc(100vh + ${totalScrollable}px)` : '200vh';
+  useAnimationFrame((_, delta) => {
+    if (!loopWidth || isDragging.current || isHoverPaused) return;
 
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ['start start', 'end end'],
+    const seconds = delta / 1000;
+    let velocity = -AUTO_SCROLL_PX_PER_SECOND;
+
+    if (Math.abs(momentumVelocity.current) > MIN_MOMENTUM) {
+      velocity = momentumVelocity.current;
+      momentumVelocity.current *= MOMENTUM_FRICTION;
+    } else {
+      momentumVelocity.current = 0;
+    }
+
+    x.set(wrapOffset(x.get() + velocity * seconds));
   });
 
-  // Direct transform — no spring wrapper to avoid lag/race
-  const x = useTransform(
-    scrollYProgress,
-    [startPct, endPct],
-    [0, -translateAmount],
-    { clamp: true }
-  );
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    isDragging.current = true;
+    momentumVelocity.current = 0;
+    dragVelocity.current = 0;
+    dragStartX.current = event.clientX;
+    dragStartOffset.current = x.get();
+    lastPointerX.current = event.clientX;
+    lastPointerT.current = event.timeStamp;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging.current) return;
+
+    const dx = event.clientX - dragStartX.current;
+    x.set(wrapOffset(dragStartOffset.current + dx));
+
+    const dt = event.timeStamp - lastPointerT.current;
+    if (dt > 0) {
+      dragVelocity.current = ((event.clientX - lastPointerX.current) / dt) * 1000;
+    }
+    lastPointerX.current = event.clientX;
+    lastPointerT.current = event.timeStamp;
+  };
+
+  const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    momentumVelocity.current = dragVelocity.current;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const pause = useCallback(() => setIsHoverPaused(true), []);
+  const resume = useCallback(() => setIsHoverPaused(false), []);
+
+  const renderCards = (prefix: string) => loopCards.map(({ item, cat }) => (
+    <SkillCard
+      key={`${prefix}-${cat.name}-${item.name}`}
+      item={item}
+      categoryName={cat.name}
+      categoryIcon={cat.icon}
+      color={cat.color}
+      onPause={pause}
+      onResume={resume}
+    />
+  ));
 
   return (
-    <section id="skills" className="scroll-mt-16">
-      <div ref={containerRef} style={{ height: sectionHeight }}>
-        <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-hidden flex flex-col justify-center">
+    <section id="skills" className="scroll-mt-16 overflow-hidden py-20">
+      <div className="max-w-5xl mx-auto px-4 w-full mb-8">
+        <motion.h1
+          className="text-3xl font-bold mb-1 text-center"
+          variants={fadeSlideUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+        >
+          Skills
+        </motion.h1>
+        <motion.p
+          className="text-center text-fg/40 text-sm font-mono"
+          variants={fadeSlideUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          transition={{ delay: 0.1 }}
+        >
+          drag the shelf
+        </motion.p>
+      </div>
 
-          {/* Heading */}
-          <div className="max-w-5xl mx-auto px-4 w-full mb-8">
-            <motion.h1
-              className="text-3xl font-bold mb-1 text-center"
-              variants={fadeSlideUp}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-            >
-              Skills
-            </motion.h1>
-            <motion.p
-              className="text-center text-fg/40 text-sm font-mono"
-              variants={fadeSlideUp}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-            >
-              Scroll to explore
-            </motion.p>
+      <div
+        ref={trackRef}
+        className="w-full cursor-grab overflow-hidden active:cursor-grabbing"
+        style={{ touchAction: 'pan-y' }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      >
+        <motion.div
+          style={{ x }}
+          className="flex w-max gap-4 will-change-transform"
+          aria-label="Auto-scrolling skills carousel"
+        >
+          <div ref={loopRef} className="flex gap-4 px-2">
+            {renderCards('a')}
           </div>
-
-          {/* Two-row scroll-driven shelf */}
-          <div className="overflow-visible">
-            <motion.div
-              ref={rowRef}
-              style={{ x }}
-              className="flex flex-col gap-4 px-8 md:px-16 w-max will-change-transform"
-            >
-              <div className="flex gap-4">
-                {row1.map(({ item, cat }) => (
-                  <SkillCard
-                    key={`r1-${cat.name}-${item.name}`}
-                    item={item}
-                    categoryName={cat.name}
-                    categoryIcon={cat.icon}
-                    color={cat.color}
-                  />
-                ))}
-              </div>
-              <div className="flex gap-4">
-                {row2.map(({ item, cat }) => (
-                  <SkillCard
-                    key={`r2-${cat.name}-${item.name}`}
-                    item={item}
-                    categoryName={cat.name}
-                    categoryIcon={cat.icon}
-                    color={cat.color}
-                  />
-                ))}
-              </div>
-            </motion.div>
+          <div className="flex gap-4 px-2">
+            {renderCards('b')}
           </div>
-
-        </div>
+        </motion.div>
       </div>
     </section>
   );

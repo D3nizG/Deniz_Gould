@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     'software engineer',
     'portfolio',
     'Next.js',
-    'Ms. Pac-Man AI',
+    'full-stack engineer',
   ],
   authors: [{ name: siteConfig.name, url: siteConfig.url }],
   creator: siteConfig.name,

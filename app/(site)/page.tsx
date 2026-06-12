@@ -1,14 +1,13 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Linkedin, Github, Twitter, Instagram, Mail } from 'lucide-react';
+import { BrainCircuit, Code2, Github, Instagram, Linkedin, Mail, Rocket, Twitter } from 'lucide-react';
 import data from '../../public/resume.json';
 import { fadeSlideLeft, scaleIn, staggerContainer } from '../../lib/motion.client';
 import AboutSection from '@/components/sections/AboutSection';
 import SkillsSection from '@/components/sections/SkillsSection';
 import ProjectsSection from '@/components/sections/ProjectsSection';
 import EducationSection from '@/components/sections/EducationSection';
-import GameBezel from '@/components/GameBezel';
 import { personStructuredData } from '@/lib/site';
 
 const socialLinks = [
@@ -94,23 +93,69 @@ export default function HomePage() {
               ))}
             </motion.div>
 
-            {/* AI mode caption */}
-            <motion.p
-              variants={fadeSlideLeft}
-              className="text-xs text-fg/40 font-mono max-w-xs"
-            >
-              Watch an RL agent I trained play Ms. Pac-Man in real time →
-            </motion.p>
+            <motion.div variants={fadeSlideLeft} className="flex flex-wrap gap-2 pt-1">
+              {['AI/ML', 'Full-stack', 'Realtime systems'].map((label) => (
+                <span
+                  key={label}
+                  className="rounded-full border border-fg/10 px-3 py-1 text-xs font-mono text-fg/55"
+                >
+                  {label}
+                </span>
+              ))}
+            </motion.div>
           </motion.div>
 
-          {/* Right column — game bezel */}
+          {/* Right column — portfolio signal */}
           <motion.div
             variants={scaleIn}
             initial="hidden"
             animate="visible"
             transition={{ delay: 0.3 }}
+            className="relative min-h-[420px] overflow-hidden rounded-2xl border border-fg/10 bg-bg-secondary/50 p-6 shadow-2xl shadow-black/20"
           >
-            <GameBezel />
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-accent-primary via-accent-secondary to-accent-primary" />
+            <div className="flex h-full flex-col justify-between gap-8">
+              <div className="space-y-5">
+                <div className="flex items-center gap-3 text-accent-primary">
+                  <BrainCircuit size={26} />
+                  <span className="font-mono text-xs uppercase tracking-[0.28em] text-fg/50">
+                    Engineering Focus
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold leading-tight">
+                    Intelligent products with practical systems underneath.
+                  </h3>
+                  <p className="mt-3 max-w-md text-sm leading-relaxed text-fg/65">
+                    I build AI-assisted applications, realtime web experiences, and backend services
+                    that stay understandable from prototype through production.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                  { icon: <Code2 size={18} />, value: '5+', label: 'years web' },
+                  { icon: <BrainCircuit size={18} />, value: 'AI', label: 'focused MS' },
+                  { icon: <Rocket size={18} />, value: '3', label: 'live projects' },
+                ].map((item) => (
+                  <div key={item.label} className="border-l border-fg/15 pl-3">
+                    <div className="mb-2 text-accent-secondary">{item.icon}</div>
+                    <div className="font-mono text-xl font-bold text-fg">{item.value}</div>
+                    <div className="text-xs text-fg/45">{item.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-xl border border-accent-primary/15 bg-black/25 p-4 font-mono text-xs leading-relaxed text-fg/70">
+                <div className="mb-2 text-accent-primary">current_stack.ts</div>
+                <div>
+                  <span className="text-accent-secondary">const</span> focus = [
+                  <span className="text-fg">'LLMs'</span>, <span className="text-fg">'React'</span>,{' '}
+                  <span className="text-fg">'Realtime APIs'</span>];
+                </div>
+              </div>
+            </div>
           </motion.div>
         </div>
       </section>
